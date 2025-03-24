@@ -148,6 +148,8 @@ const ModulePredictive = () => {
   const [isTrainingMode, setIsTrainingMode] = useState<boolean>(false);
   const [ruleSearchTerm, setRuleSearchTerm] = useState<string>('');
   const [ruleFilterStatus, setRuleFilterStatus] = useState<string>('all');
+  const [showTrendModal, setShowTrendModal] = useState<boolean>(false);
+  const [exportFormat, setExportFormat] = useState<string | null>(null);
   
   // 初始化数据
   useEffect(() => {
@@ -357,6 +359,97 @@ const ModulePredictive = () => {
       return true;
     });
   };
+
+  // 添加导出详情函数
+  const exportModuleDetails = (format: string) => {
+    if (!selectedModule) return;
+    
+    const moduleInfo: Record<string, Record<string, string | number>> = {
+      基本信息: {
+        模块名称: selectedModule.name,
+        健康状态: selectedModule.health,
+        预测状态: selectedModule.predictedFailure ? '预测故障' : '正常',
+        故障概率: `${selectedModule.failureProbability}%`,
+        预计剩余时间: selectedModule.predictedFailure ? `${selectedModule.timeToFailure}小时` : '不适用',
+        最后更新时间: selectedModule.lastUpdated,
+      },
+      位置信息: {
+        数据中心: selectedModule.dataCenter?.name || '未知',
+        机房: selectedModule.room?.name || '未知',
+        机架: selectedModule.rack?.name || '未知',
+        设备: selectedModule.device?.name || '未知',
+        设备类型: selectedModule.device?.type || '未知',
+        IP地址: selectedModule.device?.ip || '未知',
+        端口: String(selectedModule.portIndex || '未知'),
+      },
+      性能指标: {
+        温度: `${selectedModule.temperature}°C`,
+        接收功率: `${selectedModule.rxPower} dBm`,
+        发送功率: `${selectedModule.txPower} dBm`,
+        电压: `${selectedModule.voltage} V`,
+        电流: `${selectedModule.current} mA`,
+        历史异常次数: selectedModule.historicalAnomalies || 0,
+      }
+    };
+    
+    let content = '';
+    let filename = `模块详情_${selectedModule.name}_${new Date().toISOString().split('T')[0]}`;
+    
+    if (format === 'json') {
+      content = JSON.stringify(moduleInfo, null, 2);
+      filename += '.json';
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else if (format === 'csv') {
+      // 将嵌套对象扁平化为CSV
+      let csvContent = '';
+      Object.keys(moduleInfo).forEach(category => {
+        const categoryData = moduleInfo[category];
+        Object.keys(categoryData).forEach(key => {
+          csvContent += `${category}-${key},${categoryData[key]}\n`;
+        });
+      });
+      
+      filename += '.csv';
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else if (format === 'pdf') {
+      alert('PDF导出功能正在开发中，请选择其他格式');
+    }
+    
+    setExportFormat(null); // 重置导出格式选择
+  };
+
+  // 添加点击外部关闭导出菜单
+  useEffect(() => {
+    if (exportFormat) {
+      const handleClickOutside = (event: MouseEvent) => {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.export-menu-container')) {
+          setExportFormat(null);
+        }
+      };
+      
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [exportFormat]);
 
   // 渲染主界面
   return (
@@ -865,10 +958,42 @@ const ModulePredictive = () => {
               </div>
               
               <div className="border-t pt-4 flex justify-end space-x-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                  导出详情
-                </button>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                <div className="relative export-menu-container">
+                  <button 
+                    onClick={() => setExportFormat(exportFormat ? null : 'select')}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+                  >
+                    导出详情
+                    <ChevronDown className="w-4 h-4 ml-1" />
+                  </button>
+                  
+                  {exportFormat === 'select' && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                      <button 
+                        onClick={() => exportModuleDetails('json')}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        JSON格式
+                      </button>
+                      <button 
+                        onClick={() => exportModuleDetails('csv')}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        CSV格式
+                      </button>
+                      <button 
+                        onClick={() => exportModuleDetails('pdf')}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                      >
+                        PDF格式
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  onClick={() => setShowTrendModal(true)}
+                >
                   查看历史趋势
                 </button>
               </div>
@@ -1176,6 +1301,127 @@ const ModulePredictive = () => {
                 </button>
                 <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
                   创建规则并训练
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 历史趋势弹窗 */}
+      {showTrendModal && selectedModule && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium">
+                  {selectedModule.name} 历史趋势分析
+                </h3>
+                <button 
+                  onClick={() => setShowTrendModal(false)} 
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-6 mb-6">
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="p-4 border-b bg-gray-50">
+                    <h4 className="font-medium">温度趋势 (过去30天)</h4>
+                  </div>
+                  <div className="p-4 flex justify-center">
+                    <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center">
+                      <div className="text-center">
+                        <LineChart className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                        <div className="text-gray-500">模拟温度趋势图表</div>
+                        <div className="text-xs text-gray-400 mt-2">显示过去30天的温度波动，标记了3次异常峰值</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="p-4 border-b bg-gray-50">
+                    <h4 className="font-medium">接收功率趋势 (过去30天)</h4>
+                  </div>
+                  <div className="p-4 flex justify-center">
+                    <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center">
+                      <div className="text-center">
+                        <LineChart className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                        <div className="text-gray-500">模拟接收功率趋势图表</div>
+                        <div className="text-xs text-gray-400 mt-2">显示过去30天的接收功率变化，检测到下降趋势</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="p-4 border-b bg-gray-50">
+                    <h4 className="font-medium">异常事件时间线</h4>
+                  </div>
+                  <div className="p-4">
+                    <div className="space-y-4">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5"></div>
+                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium">温度超出阈值</div>
+                          <div className="text-xs text-gray-500">{new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
+                          <div className="text-sm mt-1">温度达到38.2°C，超出正常工作范围</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500 mt-1.5"></div>
+                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium">接收功率下降</div>
+                          <div className="text-xs text-gray-500">{new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
+                          <div className="text-sm mt-1">接收功率从-5.2dBm下降到-6.8dBm</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5"></div>
+                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium">电压波动</div>
+                          <div className="text-xs text-gray-500">{new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
+                          <div className="text-sm mt-1">电压出现明显波动，从3.3V波动到3.15V</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <div className="w-3 h-3 rounded-full bg-green-500 mt-1.5"></div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium">设备重启</div>
+                          <div className="text-xs text-gray-500">{new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
+                          <div className="text-sm mt-1">设备计划内重启，模块参数正常恢复</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4 flex justify-between">
+                <div className="text-sm text-gray-500">
+                  模块运行时间: 187天 | 记录的异常事件: {selectedModule.historicalAnomalies || 4}次
+                </div>
+                <button 
+                  onClick={() => setShowTrendModal(false)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                >
+                  关闭
                 </button>
               </div>
             </div>
