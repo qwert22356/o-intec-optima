@@ -60,21 +60,80 @@ interface PredictionRule {
   id: string;
   name: string;
   description: string;
-  createdAt: string;
-  updatedAt: string;
   moduleType: string;
-  confidenceThreshold: number;
-  parameters: {
-    timeWindow: number; // 小时
-    features: string[];
-    algorithm: string;
-    minConfidence: number;
-  };
   isActive: boolean;
   accuracy: number;
   totalPredictions: number;
   correctPredictions: number;
+  parameters: {
+    algorithm: string;
+    features: string[];
+    timeWindow: number;
+    minConfidence: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+  industryRecommendation?: string;
 }
+
+// 在参数部分添加行业推荐数据结构
+interface IndustryRecommendation {
+  industry: string;
+  scenario: string;
+  algorithm: string;
+  reason: string;
+}
+
+const industryRecommendations: IndustryRecommendation[] = [
+  {
+    industry: "AI训练集群",
+    scenario: "长时间趋势、温度/功率稳定上升，重视寿命预测",
+    algorithm: "ARIMA+Isolation Forest",
+    reason: "模型轻巧、适合单变量趋势建模，对寿命类趋势预测非常高效"
+  },
+  {
+    industry: "AI推理场景",
+    scenario: "短期负载波动明显，需要实时异常检测",
+    algorithm: "Isolation Forest",
+    reason: "异常检测性能优异，训练预测都快，适合低延迟部署"
+  },
+  {
+    industry: "互联网企业",
+    scenario: "多特征交互型数据（功率+温度+历史行为等），系统多",
+    algorithm: "XGBoost",
+    reason: "相比 LSTM 更省资源，适合批量任务中多特征分析"
+  },
+  {
+    industry: "传统数据中心（金融等）",
+    scenario: "数据结构化强、维护周期规律",
+    algorithm: "ARIMA",
+    reason: "用于温度、负载的周期预测，部署轻便、解释性强"
+  },
+  {
+    industry: "运营商/ISP",
+    scenario: "设备海量、重视告警及时性与高召回率",
+    algorithm: "Isolation Forest",
+    reason: "可大规模部署于各接入点，快速识别突发异常或高温高功率模块"
+  },
+  {
+    industry: "制造业",
+    scenario: "传感器数据、周期工作模式，倾向寿命预测",
+    algorithm: "ARIMA",
+    reason: "预测精度足够，轻量级可嵌入设备端或边缘设备中"
+  },
+  {
+    industry: "云服务商",
+    scenario: "多租户高密度环境，对模块健康感知要求强",
+    algorithm: "Isolation Forest",
+    reason: "无监督模型减少特征工程开销、适合组件监控系统"
+  },
+  {
+    industry: "电商平台",
+    scenario: "系统稳定但节假日流量激增，需负载预测或提前预警",
+    algorithm: "ARIMA",
+    reason: "对业务高峰进行趋势建模，节省大量部署和训练资源"
+  }
+];
 
 const ModulePredictive = () => {
   const [moduleData, setModuleData] = useState<ModuleData[]>([]);
@@ -171,57 +230,87 @@ const ModulePredictive = () => {
     return modules;
   };
   
-  // 生成模拟预测规则数据
+  // 修改规则生成函数，添加行业推荐
   const generateMockRules = (): PredictionRule[] => {
+    const algorithms = ['ARIMA', 'LSTM', 'Random Forest', 'XGBoost', 'Isolation Forest'];
+    const featuresList = [
+      ['rxPower', 'temperature', 'voltage'],
+      ['txPower', 'rxPower', 'current', 'temperature'],
+      ['temperature', 'voltage', 'current'],
+      ['rxPower', 'txPower', 'bias current']
+    ];
+    
+    const ruleTypes = ['单模光模块', '多模光模块', '所有类型'];
+    
     const rules: PredictionRule[] = [];
     
-    const ruleNames = [
-      "光功率衰减预测模型", 
-      "温度异常检测规则", 
-      "电压波动监测模型", 
-      "高温预警规则",
-      "接收功率波动检测"
-    ];
-    
-    const algorithms = [
-      "ARIMA时间序列", 
-      "LSTM深度学习", 
-      "随机森林回归", 
-      "隔离森林异常检测",
-      "XGBoost分类器"
-    ];
-    
-    const features = [
-      ["rxPower", "temperature"],
-      ["temperature", "current", "voltage"],
-      ["rxPower", "txPower"],
-      ["temperature", "voltage"],
-      ["rxPower", "txPower", "temperature", "current", "voltage"]
-    ];
-    
-    for (let i = 0; i < 5; i++) {
-      const totalPredictions = Math.floor(Math.random() * 1000) + 100;
-      const correctPredictions = Math.floor(totalPredictions * (0.7 + Math.random() * 0.25));
-      const accuracy = (correctPredictions / totalPredictions) * 100;
+    // 先添加8个基于行业推荐的规则
+    industryRecommendations.forEach((rec, i) => {
+      const isActive = Math.random() < 0.8; // 80%处于活跃状态
+      const accuracy = Math.floor(65 + Math.random() * 30);
+      const totalPredictions = Math.floor(200 + Math.random() * 800);
+      const correctPredictions = Math.floor(totalPredictions * (accuracy / 100));
+      
+      const now = Date.now();
+      const createdAt = now - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000); // 最多90天前
+      const updatedAt = createdAt + Math.floor(Math.random() * (now - createdAt));
+      
+      const featIndex = Math.floor(Math.random() * featuresList.length);
+      const typeIndex = Math.floor(Math.random() * ruleTypes.length);
       
       rules.push({
-        id: `rule-${i + 1}`,
-        name: ruleNames[i],
-        description: `用于检测光模块${ruleNames[i].split('模型')[0].split('规则')[0]}问题的预测模型`,
-        createdAt: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-        updatedAt: new Date(Date.now() - Math.random() * 1000000000).toISOString(),
-        moduleType: i % 2 === 0 ? "单模" : "多模",
-        confidenceThreshold: 65 + Math.floor(Math.random() * 20),
-        parameters: {
-          timeWindow: 24 * (Math.floor(Math.random() * 14) + 1), // 1-14天
-          features: features[i],
-          algorithm: algorithms[i],
-          minConfidence: 60 + Math.floor(Math.random() * 20)
-        },
-        isActive: Math.random() > 0.2, // 80%概率为活跃状态
-        accuracy: parseFloat(accuracy.toFixed(2)),
+        id: `rule-${i}`,
+        name: `${rec.industry}-${rec.algorithm}规则`,
+        description: `针对${rec.industry}的预测规则，${rec.scenario}。${rec.reason}。`,
+        moduleType: ruleTypes[typeIndex],
+        isActive,
+        accuracy,
         totalPredictions,
-        correctPredictions
+        correctPredictions,
+        parameters: {
+          algorithm: rec.algorithm,
+          features: featuresList[featIndex],
+          timeWindow: 24 * (Math.floor(Math.random() * 7) + 1), // 1-7天
+          minConfidence: Math.floor(60 + Math.random() * 30) // 60-90%
+        },
+        createdAt: new Date(createdAt).toISOString(),
+        updatedAt: new Date(updatedAt).toISOString(),
+        industryRecommendation: rec.industry // 添加行业推荐字段
+      });
+    });
+    
+    // 再添加2个普通规则
+    for (let i = 8; i <= 10; i++) {
+      const algIndex = Math.floor(Math.random() * algorithms.length);
+      const featIndex = Math.floor(Math.random() * featuresList.length);
+      const typeIndex = Math.floor(Math.random() * ruleTypes.length);
+      
+      const isActive = Math.random() < 0.7; // 70%处于活跃状态
+      const accuracy = Math.floor(50 + Math.random() * 40);
+      const totalPredictions = Math.floor(100 + Math.random() * 900);
+      const correctPredictions = Math.floor(totalPredictions * (accuracy / 100));
+      
+      const now = Date.now();
+      const createdAt = now - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000); // 最多90天前
+      const updatedAt = createdAt + Math.floor(Math.random() * (now - createdAt));
+      
+      rules.push({
+        id: `rule-${i}`,
+        name: `${ruleTypes[typeIndex]}-${algorithms[algIndex]}-规则-${i}`,
+        description: `基于${algorithms[algIndex]}算法的预测模型，使用${featuresList[featIndex].join('、')}等特征，适用于${ruleTypes[typeIndex]}。`,
+        moduleType: ruleTypes[typeIndex],
+        isActive,
+        accuracy,
+        totalPredictions,
+        correctPredictions,
+        parameters: {
+          algorithm: algorithms[algIndex],
+          features: featuresList[featIndex],
+          timeWindow: 24 * (Math.floor(Math.random() * 7) + 1), // 1-7天
+          minConfidence: Math.floor(60 + Math.random() * 30) // 60-90%
+        },
+        createdAt: new Date(createdAt).toISOString(),
+        updatedAt: new Date(updatedAt).toISOString()
       });
     }
     
@@ -493,13 +582,20 @@ const ModulePredictive = () => {
                         <div className="p-4">
                           <div className="flex justify-between items-start mb-2">
                             <h3 className="font-medium">{rule.name}</h3>
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${
-                              rule.isActive 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {rule.isActive ? '活跃' : '未激活'}
-                            </span>
+                            <div className="flex flex-col items-end">
+                              <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                rule.isActive 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {rule.isActive ? '活跃' : '未激活'}
+                              </span>
+                              {rule.industryRecommendation && (
+                                <span className="px-2 py-0.5 mt-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  行业推荐
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-2 mb-3">
                             {rule.description}
@@ -523,6 +619,11 @@ const ModulePredictive = () => {
                             </div>
                             <span className="text-xs">预测次数: {rule.totalPredictions}</span>
                           </div>
+                          {rule.industryRecommendation && (
+                            <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                              推荐场景: {rule.industryRecommendation}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -816,8 +917,27 @@ const ModulePredictive = () => {
                   <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
                     {selectedRule.moduleType}
                   </span>
+                  {selectedRule.industryRecommendation && (
+                    <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                      {selectedRule.industryRecommendation} 推荐
+                    </span>
+                  )}
                 </div>
               </div>
+              
+              {selectedRule.industryRecommendation && (
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">行业推荐信息</h4>
+                  <div className="text-sm">
+                    <p><span className="font-medium">适用场景：</span> 
+                      {industryRecommendations.find(rec => rec.industry === selectedRule.industryRecommendation)?.scenario}
+                    </p>
+                    <p className="mt-2"><span className="font-medium">推荐原因：</span> 
+                      {industryRecommendations.find(rec => rec.industry === selectedRule.industryRecommendation)?.reason}
+                    </p>
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
