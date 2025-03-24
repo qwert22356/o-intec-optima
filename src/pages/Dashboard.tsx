@@ -1,8 +1,80 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, AlertTriangle, CheckCircle, Server, Network, ArrowUpDown, ArrowDown, ArrowUp, Wind, Thermometer, Cpu, Layers, Settings, PlugZap, ListFilter } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle, Server, Network, ArrowUpDown, ArrowDown, ArrowUp, Wind, Thermometer, Cpu, Layers, Settings, PlugZap, ListFilter, Router } from 'lucide-react';
 import { MOCK_DATA } from '../lib/utils';
 
-const StatCard = ({ title, value, icon: Icon, className = '' }) => (
+// 定义类型接口
+interface NetworkInterface {
+  name: string;
+  status: string;
+  adminStatus: string;
+  speed: string;
+  mtu: number;
+  duplex: string;
+  autoNeg: boolean;
+  rxBytes: string;
+  txBytes: string;
+  rxPackets: string;
+  txPackets: string;
+  drops: number;
+  crcErrors: number;
+  frameErrors: number;
+  errors: number;
+}
+
+interface OpticalModule {
+  name: string;
+  present: boolean;
+  vendor: string;
+  partNumber: string;
+  serialNumber: string;
+  connectorType: string;
+  transceiverType: string;
+  domSupport: boolean;
+  calibration: string;
+  temperature: string;
+  voltage: string;
+  txPower: string;
+  rxPower: string;
+}
+
+interface DeviceStatusInfo {
+  state: string;
+  detail: string;
+}
+
+interface DeviceStatus {
+  fans: DeviceStatusInfo;
+  temperature: DeviceStatusInfo;
+  power: DeviceStatusInfo;
+}
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ComponentType<any>;
+  className?: string;
+}
+
+interface StatusBadgeProps {
+  status: string;
+}
+
+interface OpticalModuleCardProps {
+  module: OpticalModule;
+}
+
+interface InterfaceTableProps {
+  interfaces: NetworkInterface[];
+}
+
+interface DeviceStatusCardProps {
+  title: string;
+  status: DeviceStatusInfo;
+  icon: React.ComponentType<any>;
+}
+
+// 组件定义
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, className = '' }) => (
   <div className={`bg-white rounded-xl shadow-sm p-6 ${className}`}>
     <div className="flex items-center">
       <div className="p-2 rounded-lg bg-blue-50">
@@ -16,7 +88,7 @@ const StatCard = ({ title, value, icon: Icon, className = '' }) => (
   </div>
 );
 
-const StatusBadge = ({ status }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   let className = "px-2 py-1 text-xs rounded-full ";
   if (status === "up") {
     className += "bg-green-100 text-green-800";
@@ -28,7 +100,7 @@ const StatusBadge = ({ status }) => {
   return <span className={className}>{status}</span>;
 };
 
-const OpticalModuleCard = ({ module }) => (
+const OpticalModuleCard: React.FC<OpticalModuleCardProps> = ({ module }) => (
   <div className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
     <div className="border-b px-4 py-3 bg-gray-50 flex justify-between items-center">
       <div className="font-medium text-gray-800">{module.name}</div>
@@ -71,7 +143,7 @@ const OpticalModuleCard = ({ module }) => (
   </div>
 );
 
-const InterfaceTable = ({ interfaces }) => (
+const InterfaceTable: React.FC<InterfaceTableProps> = ({ interfaces }) => (
   <div className="rounded-lg overflow-hidden border border-gray-200">
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -93,7 +165,13 @@ const InterfaceTable = ({ interfaces }) => (
               发送/接收字节
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              错误
+              丢包数量
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              CRC错误
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              帧错误
             </th>
           </tr>
         </thead>
@@ -123,8 +201,22 @@ const InterfaceTable = ({ interfaces }) => (
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {iface.errors > 0 ? (
-                  <span className="text-red-600">{iface.errors}</span>
+                {iface.drops > 0 ? (
+                  <span className="text-red-600">{iface.drops}</span>
+                ) : (
+                  <span>0</span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {iface.crcErrors > 0 ? (
+                  <span className="text-red-600">{iface.crcErrors}</span>
+                ) : (
+                  <span>0</span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {iface.frameErrors > 0 ? (
+                  <span className="text-red-600">{iface.frameErrors}</span>
                 ) : (
                   <span>0</span>
                 )}
@@ -137,7 +229,7 @@ const InterfaceTable = ({ interfaces }) => (
   </div>
 );
 
-const DeviceStatusCard = ({ title, status, icon: Icon }) => (
+const DeviceStatusCard: React.FC<DeviceStatusCardProps> = ({ title, status, icon: Icon }) => (
   <div className="border rounded-lg overflow-hidden">
     <div className="px-4 py-3 bg-gray-50 border-b">
       <h3 className="font-medium text-gray-800">{title}</h3>
@@ -160,183 +252,186 @@ const DeviceStatusCard = ({ title, status, icon: Icon }) => (
 );
 
 export default function Dashboard() {
-  const [interfaces, setInterfaces] = useState([]);
-  const [opticalModules, setOpticalModules] = useState([]);
-  const [deviceStatus, setDeviceStatus] = useState({
+  const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
+  const [opticalModules, setOpticalModules] = useState<OpticalModule[]>([]);
+  const [deviceStatus, setDeviceStatus] = useState<DeviceStatus>({
     fans: { state: "normal", detail: "风扇运行正常，4500 RPM" },
     temperature: { state: "normal", detail: "CPU温度 45℃, 系统温度 38℃" },
     power: { state: "normal", detail: "电源1: 在线, 电源2: 在线" }
   });
   const [loading, setLoading] = useState(true);
+  const [selectedDevice, setSelectedDevice] = useState("device1");
+  const [devices, setDevices] = useState<{id: string, name: string, type: string, interfaces: number}[]>([]);
 
+  // 模拟从gNMI获取设备列表
+  useEffect(() => {
+    // 模拟从gNMI获取所有设备的信息
+    const fetchDevices = async () => {
+      // 这里会被替换为真实的API调用
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const mockDevices = [
+        { id: "device1", name: "核心交换机-1", type: "C8000-SUP6", interfaces: 48 },
+        { id: "device2", name: "核心交换机-2", type: "C8000-SUP6", interfaces: 48 },
+        { id: "device3", name: "接入交换机-1", type: "S5800-48T", interfaces: 52 },
+        { id: "device4", name: "接入交换机-2", type: "S5800-48T", interfaces: 52 },
+        { id: "device5", name: "TOR交换机-1", type: "S6700-24C", interfaces: 28 },
+        { id: "device6", name: "TOR交换机-2", type: "S6700-24C", interfaces: 28 },
+        { id: "device7", name: "边界交换机-1", type: "N7710", interfaces: 128 },
+        { id: "device8", name: "边界交换机-2", type: "N7710", interfaces: 128 }
+      ];
+      
+      setDevices(mockDevices);
+    };
+    
+    fetchDevices();
+  }, []);
+
+  // 根据选择的设备获取详细信息
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // 这里会被替换为真实的 gNMI 数据获取
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockInterfaces = [
-          { 
-            name: "Ethernet1/1", 
-            status: "up", 
-            adminStatus: "up", 
-            speed: "100 Gbps", 
-            mtu: 9216, 
-            duplex: "full", 
-            autoNeg: true,
-            rxBytes: "1.2 GB",
-            txBytes: "856 MB",
-            rxPackets: "1,203,456",
-            txPackets: "987,654",
-            drops: 0,
-            errors: 0
-          },
-          { 
-            name: "Ethernet1/2", 
-            status: "up", 
-            adminStatus: "up", 
-            speed: "100 Gbps", 
-            mtu: 9216, 
-            duplex: "full", 
-            autoNeg: true,
-            rxBytes: "985 MB",
-            txBytes: "756 MB",
-            rxPackets: "1,001,234",
-            txPackets: "896,321",
-            drops: 2,
-            errors: 0
-          },
-          { 
-            name: "Ethernet1/3", 
-            status: "down", 
-            adminStatus: "up", 
-            speed: "100 Gbps", 
-            mtu: 9216, 
-            duplex: "full", 
-            autoNeg: true,
-            rxBytes: "0",
-            txBytes: "0",
-            rxPackets: "0",
-            txPackets: "0",
-            drops: 0,
-            errors: 8
-          },
-          { 
-            name: "Ethernet1/4", 
-            status: "down", 
-            adminStatus: "down", 
-            speed: "100 Gbps", 
-            mtu: 9216, 
-            duplex: "full", 
-            autoNeg: true,
-            rxBytes: "0",
-            txBytes: "0",
-            rxPackets: "0",
-            txPackets: "0",
-            drops: 0,
-            errors: 0
-          },
-          { 
-            name: "Ethernet2/1", 
-            status: "up", 
-            adminStatus: "up", 
-            speed: "100 Gbps", 
-            mtu: 9216, 
-            duplex: "full", 
-            autoNeg: true,
-            rxBytes: "2.5 GB",
-            txBytes: "1.8 GB",
-            rxPackets: "2,345,678",
-            txPackets: "1,987,654",
-            drops: 0,
-            errors: 0
-          }
-        ];
+        // 根据选择的设备生成不同数量的接口
+        const deviceInfo = devices.find(d => d.id === selectedDevice);
+        const interfaceCount = deviceInfo ? deviceInfo.interfaces : 0;
         
-        const mockOpticalModules = [
-          {
-            name: "Ethernet1/1",
-            present: true,
-            vendor: "Finisar",
-            partNumber: "FTLX8571D3BCL",
-            serialNumber: "AGD1950A1Z1",
-            connectorType: "LC",
-            transceiverType: "SFP+",
-            domSupport: true,
-            calibration: "internal",
-            temperature: "45.7°C",
-            voltage: "3.3V",
-            txPower: "-1.5 dBm",
-            rxPower: "-2.1 dBm"
+        // 生成接口数据
+        const mockInterfaces: NetworkInterface[] = [];
+        for (let i = 1; i <= interfaceCount; i++) {
+          // 模拟一些接口故障情况
+          const hasIssue = Math.random() < 0.1; // 10%的接口有问题
+          const isDown = Math.random() < 0.05; // 5%的接口down
+          const isAdminDown = Math.random() < 0.03; // 3%的接口管理down
+          
+          mockInterfaces.push({ 
+            name: `Ethernet${i}`, 
+            status: isDown ? "down" : "up", 
+            adminStatus: isAdminDown ? "down" : "up", 
+            speed: ["10 Gbps", "25 Gbps", "40 Gbps", "100 Gbps"][Math.floor(Math.random() * 4)], 
+            mtu: [1500, 9000, 9216][Math.floor(Math.random() * 3)], 
+            duplex: "full", 
+            autoNeg: Math.random() > 0.2,
+            rxBytes: `${(Math.random() * 5).toFixed(1)} GB`,
+            txBytes: `${(Math.random() * 3).toFixed(1)} GB`,
+            rxPackets: `${Math.floor(Math.random() * 10000000)}`,
+            txPackets: `${Math.floor(Math.random() * 8000000)}`,
+            drops: hasIssue && Math.random() < 0.3 ? Math.floor(Math.random() * 50) : 0,
+            crcErrors: hasIssue && Math.random() < 0.4 ? Math.floor(Math.random() * 20) : 0,
+            frameErrors: hasIssue && Math.random() < 0.2 ? Math.floor(Math.random() * 10) : 0,
+            errors: hasIssue && Math.random() < 0.5 ? Math.floor(Math.random() * 30) : 0
+          });
+        }
+        
+        // 生成光模块数据 - 每台设备只有部分接口安装了光模块
+        const moduleCount = Math.floor(interfaceCount * 0.6); // 60%的接口装有光模块
+        const mockOpticalModules: OpticalModule[] = [];
+        
+        const vendors = ["Finisar", "Intel", "Cisco", "Juniper", "Huawei"];
+        const transceiverTypes = ["SFP", "SFP+", "QSFP+", "QSFP28", "SFP28"];
+        const connectorTypes = ["LC", "SC", "MPO", "MT-RJ"];
+        
+        for (let i = 1; i <= moduleCount; i++) {
+          const portIndex = Math.floor(Math.random() * interfaceCount) + 1;
+          const vendor = vendors[Math.floor(Math.random() * vendors.length)];
+          const type = transceiverTypes[Math.floor(Math.random() * transceiverTypes.length)];
+          const connector = connectorTypes[Math.floor(Math.random() * connectorTypes.length)];
+          const temp = (Math.random() * 30 + 30).toFixed(1); // 30-60°C
+          
+          mockOpticalModules.push({
+            name: `Ethernet${portIndex}`,
+            present: Math.random() > 0.05, // 5%概率模块不在位
+            vendor,
+            partNumber: `${vendor}-${type}-${Math.floor(Math.random() * 1000)}`,
+            serialNumber: `${vendor[0]}${type[0]}${Math.floor(Math.random() * 10000000)}`,
+            connectorType: connector,
+            transceiverType: type,
+            domSupport: Math.random() > 0.1, // 90%支持DOM
+            calibration: Math.random() > 0.5 ? "internal" : "external",
+            temperature: `${temp}°C`,
+            voltage: `${(Math.random() * 0.2 + 3.2).toFixed(2)}V`,
+            txPower: `${(Math.random() * 3 - 5).toFixed(1)} dBm`,
+            rxPower: `${(Math.random() * 5 - 8).toFixed(1)} dBm`
+          });
+        }
+        
+        // 随机设备状态问题
+        const randomStatus: DeviceStatus = {
+          fans: { 
+            state: Math.random() < 0.05 ? "warning" : "normal", 
+            detail: Math.random() < 0.05 ? "风扇#2转速降低，4100 RPM" : "风扇运行正常，4500 RPM" 
           },
-          {
-            name: "Ethernet1/2",
-            present: true,
-            vendor: "Finisar",
-            partNumber: "FTLX8571D3BCL",
-            serialNumber: "AGD1951B2Z1",
-            connectorType: "LC",
-            transceiverType: "SFP+",
-            domSupport: true,
-            calibration: "internal",
-            temperature: "48.2°C",
-            voltage: "3.29V",
-            txPower: "-1.3 dBm",
-            rxPower: "-2.0 dBm"
+          temperature: { 
+            state: Math.random() < 0.05 ? "warning" : "normal", 
+            detail: Math.random() < 0.05 ? "CPU温度 58℃ (接近阈值), 系统温度 45℃" : "CPU温度 45℃, 系统温度 38℃" 
           },
-          {
-            name: "Ethernet1/3",
-            present: true,
-            vendor: "Cisco",
-            partNumber: "QSFP-100G-SR4-S",
-            serialNumber: "FNS21520QS2",
-            connectorType: "MPO",
-            transceiverType: "QSFP28",
-            domSupport: true,
-            calibration: "external",
-            temperature: "52.5°C",
-            voltage: "3.31V",
-            txPower: "-1.8 dBm",
-            rxPower: "-5.7 dBm"
-          },
-          {
-            name: "Ethernet2/1",
-            present: true,
-            vendor: "Intel",
-            partNumber: "E25GSFP28-LR-I",
-            serialNumber: "INTL2550A1Z1",
-            connectorType: "LC",
-            transceiverType: "SFP28",
-            domSupport: true,
-            calibration: "internal",
-            temperature: "42.1°C",
-            voltage: "3.28V",
-            txPower: "-1.9 dBm",
-            rxPower: "-3.1 dBm"
+          power: { 
+            state: Math.random() < 0.05 ? "warning" : "normal", 
+            detail: Math.random() < 0.05 ? "电源1: 在线, 电源2: 离线" : "电源1: 在线, 电源2: 在线" 
           }
-        ];
+        };
         
         setInterfaces(mockInterfaces);
         setOpticalModules(mockOpticalModules);
+        setDeviceStatus(randomStatus);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
       setLoading(false);
     };
     
-    fetchData();
-  }, []);
+    if (selectedDevice && devices.length > 0) {
+      fetchData();
+    }
+  }, [selectedDevice, devices]);
 
+  // 计算接口统计数据
   const interfaceStats = {
     total: interfaces.length,
     up: interfaces.filter(i => i.status === "up").length,
     down: interfaces.filter(i => i.status === "down").length,
     adminDown: interfaces.filter(i => i.adminStatus === "down").length,
-    errors: interfaces.reduce((acc, i) => acc + i.errors, 0)
+    errors: interfaces.reduce((acc, i) => acc + i.errors, 0),
+    drops: interfaces.reduce((acc, i) => acc + i.drops, 0),
+    crcErrors: interfaces.reduce((acc, i) => acc + i.crcErrors, 0),
+    frameErrors: interfaces.reduce((acc, i) => acc + i.frameErrors, 0)
   };
 
   return (
     <div className="space-y-6">
+      {/* 设备选择器 */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 md:mb-0">设备选择</h2>
+          
+          <div className="flex flex-wrap gap-2">
+            {devices.map(device => (
+              <button
+                key={device.id}
+                onClick={() => setSelectedDevice(device.id)}
+                className={`px-3 py-2 rounded-md text-sm ${
+                  selectedDevice === device.id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <div className="flex items-center">
+                  <Router className="w-4 h-4 mr-2" />
+                  <span>{device.name}</span>
+                </div>
+                <div className="text-xs mt-1 opacity-80">
+                  {device.type} | {device.interfaces}端口
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 顶部统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="健康评分"
@@ -354,13 +449,35 @@ export default function Dashboard() {
           icon={Network}
         />
         <StatCard
-          title="告警模块"
-          value={MOCK_DATA.criticalModules}
+          title="错误统计"
+          value={interfaceStats.errors + interfaceStats.crcErrors + interfaceStats.frameErrors}
           icon={AlertTriangle}
-          className="bg-red-50"
+          className={interfaceStats.errors > 0 ? "bg-red-50" : ""}
         />
       </div>
 
+      {/* 错误统计卡片 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="text-sm text-gray-500 mb-1">丢包数量</div>
+          <div className="text-2xl font-semibold">{interfaceStats.drops}</div>
+          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.drops > 0).length} 个接口</div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="text-sm text-gray-500 mb-1">CRC错误</div>
+          <div className="text-2xl font-semibold">{interfaceStats.crcErrors}</div>
+          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.crcErrors > 0).length} 个接口</div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="text-sm text-gray-500 mb-1">帧错误</div>
+          <div className="text-2xl font-semibold">{interfaceStats.frameErrors}</div>
+          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.frameErrors > 0).length} 个接口</div>
+        </div>
+      </div>
+
+      {/* 接口状态表格 */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex justify-between mb-4 items-center">
           <h2 className="text-lg font-semibold text-gray-900">接口状态</h2>
@@ -389,7 +506,9 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* 光模块和设备信息 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 光模块信息 */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">光模块信息</h2>
           
@@ -406,6 +525,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* 设备状态和告警 */}
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">设备状态</h2>
