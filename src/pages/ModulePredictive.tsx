@@ -590,11 +590,6 @@ const ModulePredictive = () => {
                               }`}>
                                 {rule.isActive ? '活跃' : '未激活'}
                               </span>
-                              {rule.industryRecommendation && (
-                                <span className="px-2 py-0.5 mt-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                  行业推荐
-                                </span>
-                              )}
                             </div>
                           </div>
                           <p className="text-sm text-gray-500 line-clamp-2 mb-3">
@@ -619,11 +614,6 @@ const ModulePredictive = () => {
                             </div>
                             <span className="text-xs">预测次数: {rule.totalPredictions}</span>
                           </div>
-                          {rule.industryRecommendation && (
-                            <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                              推荐场景: {rule.industryRecommendation}
-                            </div>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -917,11 +907,6 @@ const ModulePredictive = () => {
                   <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
                     {selectedRule.moduleType}
                   </span>
-                  {selectedRule.industryRecommendation && (
-                    <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
-                      {selectedRule.industryRecommendation} 推荐
-                    </span>
-                  )}
                 </div>
               </div>
               
