@@ -282,29 +282,34 @@ export const MOCK_DATA = {
   lifePrediction: {
     modules: [
       {
-        id: 'MOD-001',
-        predictions: Array.from({ length: 12 }, (_, i) => ({
-          date: new Date(Date.now() + i * 30 * 24 * 60 * 60 * 1000).toISOString(),
-          remainingDays: Math.max(0, 365 - i * 28 + Math.random() * 10)
-        }))
+        id: "Module-A",
+        predictions: [
+          { date: "2024-03-01", remainingDays: 365 },
+          { date: "2024-03-15", remainingDays: 350 },
+          { date: "2024-04-01", remainingDays: 335 },
+          { date: "2024-04-15", remainingDays: 320 },
+          { date: "2024-05-01", remainingDays: 305 },
+        ]
       },
       {
-        id: 'MOD-002',
-        predictions: Array.from({ length: 12 }, (_, i) => ({
-          date: new Date(Date.now() + i * 30 * 24 * 60 * 60 * 1000).toISOString(),
-          remainingDays: Math.max(0, 280 - i * 22 + Math.random() * 10)
-        }))
+        id: "Module-B",
+        predictions: [
+          { date: "2024-03-01", remainingDays: 280 },
+          { date: "2024-03-15", remainingDays: 265 },
+          { date: "2024-04-01", remainingDays: 250 },
+          { date: "2024-04-15", remainingDays: 235 },
+          { date: "2024-05-01", remainingDays: 220 },
+        ]
       }
     ],
     warningModules: [
-      { id: 'MOD-001', prediction: '30天', temp: '75°C', status: 'warning' },
-      { id: 'MOD-003', prediction: '15天', temp: '80°C', status: 'danger' }
+      { id: "Module-C", prediction: "180天", temp: "75°C", status: "warning" },
+      { id: "Module-D", prediction: "90天", temp: "85°C", status: "danger" },
+      { id: "Module-E", prediction: "150天", temp: "78°C", status: "warning" }
     ],
     statistics: {
-      averageLifespan: '4.5年',
-      replacementRate: '2.3%',
-      previousMonthLifespan: '4.3年',
-      previousMonthRate: '2.8%'
+      averageLifespan: "3.2年",
+      replacementRate: "2.8%"
     }
   }
 };
