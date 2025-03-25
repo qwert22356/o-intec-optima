@@ -87,51 +87,39 @@ interface IndustryRecommendation {
 const industryRecommendations: IndustryRecommendation[] = [
   {
     industry: "AI训练集群",
-    scenario: "长时间趋势、温度/功率稳定上升，重视寿命预测",
-    algorithm: "ARIMA+Isolation Forest",
-    reason: "模型轻巧、适合单变量趋势建模，对寿命类趋势预测非常高效"
+    scenario: "模块3000个以上，场景特征训练任务持续长，温升缓慢但故障影响大",
+    algorithm: "ARIMA+Isolation Forest异常检测",
+    reason: "适合长期趋势分析和异常检测，可有效识别缓慢温升异常"
   },
   {
-    industry: "AI推理场景",
-    scenario: "短期负载波动明显，需要实时异常检测",
-    algorithm: "Isolation Forest",
-    reason: "异常检测性能优异，训练预测都快，适合低延迟部署"
+    industry: "AI推理边缘场景",
+    scenario: "模块约500个，场景特征负载突变快且实时性高",
+    algorithm: "Isolation Forest+滑动窗口异常检测",
+    reason: "实时性强，可快速响应负载突变，适合边缘计算场景"
   },
   {
-    industry: "互联网企业",
-    scenario: "多特征交互型数据（功率+温度+历史行为等），系统多",
-    algorithm: "XGBoost",
-    reason: "相比 LSTM 更省资源，适合批量任务中多特征分析"
+    industry: "互联网内容提供商ISP",
+    scenario: "模块20000个以上，场景特征海量模块、环境异构",
+    algorithm: "KMeans聚类+类型建模+异常打分",
+    reason: "适合大规模异构环境，可对不同类型模块进行分类建模"
   },
   {
-    industry: "传统数据中心（金融等）",
-    scenario: "数据结构化强、维护周期规律",
-    algorithm: "ARIMA",
-    reason: "用于温度、负载的周期预测，部署轻便、解释性强"
-  },
-  {
-    industry: "运营商/ISP",
-    scenario: "设备海量、重视告警及时性与高召回率",
-    algorithm: "Isolation Forest",
-    reason: "可大规模部署于各接入点，快速识别突发异常或高温高功率模块"
+    industry: "传统数据中心/金融/政府",
+    scenario: "模块规模1500+，场景特征稳定、波动小、合规性强",
+    algorithm: "SARIMA+规则引擎",
+    reason: "高精度时间序列预测，配合规则引擎保证合规性要求"
   },
   {
     industry: "制造业",
-    scenario: "传感器数据、周期工作模式，倾向寿命预测",
-    algorithm: "ARIMA",
-    reason: "预测精度足够，轻量级可嵌入设备端或边缘设备中"
+    scenario: "模块规模2000+，场景特征周期性生产，设备新旧老化明显",
+    algorithm: "Prophet+周期性建模",
+    reason: "适合处理周期性数据，可自动处理节假日等特殊时期"
   },
   {
-    industry: "云服务商",
-    scenario: "多租户高密度环境，对模块健康感知要求强",
-    algorithm: "Isolation Forest",
-    reason: "无监督模型减少特征工程开销、适合组件监控系统"
-  },
-  {
-    industry: "电商平台",
-    scenario: "系统稳定但节假日流量激增，需负载预测或提前预警",
-    algorithm: "ARIMA",
-    reason: "对业务高峰进行趋势建模，节省大量部署和训练资源"
+    industry: "云服务商/电商",
+    scenario: "模块规模20000+，场景特征多租户/大规模集群/高自动化",
+    algorithm: "分区建模+异常检测+健康评分",
+    reason: "适合多租户环境，可进行分区域建模和健康度评估"
   }
 ];
 
@@ -234,19 +222,19 @@ const ModulePredictive = () => {
   
   // 修改规则生成函数，添加行业推荐
   const generateMockRules = (): PredictionRule[] => {
-    const algorithms = ['ARIMA', 'LSTM', 'Random Forest', 'XGBoost', 'Isolation Forest'];
+    const algorithms = ['ARIMA', 'SARIMA', 'Prophet', 'Isolation Forest', 'KMeans聚类', '规则引擎', '分区建模+异常检测', '滑动窗口异常检测'];
     const featuresList = [
-      ['rxPower', 'temperature', 'voltage'],
-      ['txPower', 'rxPower', 'current', 'temperature'],
-      ['temperature', 'voltage', 'current'],
-      ['rxPower', 'txPower', 'bias current']
+      ['rxPower', 'temperature', 'voltage', 'historical_trend'],
+      ['txPower', 'rxPower', 'current', 'temperature', 'load_pattern'],
+      ['temperature', 'voltage', 'current', 'age_factor'],
+      ['rxPower', 'txPower', 'bias_current', 'environmental_factors']
     ];
     
     const ruleTypes = ['单模光模块', '多模光模块', '所有类型'];
     
     const rules: PredictionRule[] = [];
     
-    // 先添加8个基于行业推荐的规则
+    // 基于行业推荐添加规则
     industryRecommendations.forEach((rec, i) => {
       const isActive = Math.random() < 0.8; // 80%处于活跃状态
       const accuracy = Math.floor(65 + Math.random() * 30);
@@ -254,7 +242,7 @@ const ModulePredictive = () => {
       const correctPredictions = Math.floor(totalPredictions * (accuracy / 100));
       
       const now = Date.now();
-      const createdAt = now - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000); // 最多90天前
+      const createdAt = now - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000);
       const updatedAt = createdAt + Math.floor(Math.random() * (now - createdAt));
       
       const featIndex = Math.floor(Math.random() * featuresList.length);
@@ -277,44 +265,9 @@ const ModulePredictive = () => {
         },
         createdAt: new Date(createdAt).toISOString(),
         updatedAt: new Date(updatedAt).toISOString(),
-        industryRecommendation: rec.industry // 添加行业推荐字段
+        industryRecommendation: rec.industry
       });
     });
-    
-    // 再添加2个普通规则
-    for (let i = 8; i <= 10; i++) {
-      const algIndex = Math.floor(Math.random() * algorithms.length);
-      const featIndex = Math.floor(Math.random() * featuresList.length);
-      const typeIndex = Math.floor(Math.random() * ruleTypes.length);
-      
-      const isActive = Math.random() < 0.7; // 70%处于活跃状态
-      const accuracy = Math.floor(50 + Math.random() * 40);
-      const totalPredictions = Math.floor(100 + Math.random() * 900);
-      const correctPredictions = Math.floor(totalPredictions * (accuracy / 100));
-      
-      const now = Date.now();
-      const createdAt = now - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000); // 最多90天前
-      const updatedAt = createdAt + Math.floor(Math.random() * (now - createdAt));
-      
-      rules.push({
-        id: `rule-${i}`,
-        name: `${ruleTypes[typeIndex]}-${algorithms[algIndex]}-规则-${i}`,
-        description: `基于${algorithms[algIndex]}算法的预测模型，使用${featuresList[featIndex].join('、')}等特征，适用于${ruleTypes[typeIndex]}。`,
-        moduleType: ruleTypes[typeIndex],
-        isActive,
-        accuracy,
-        totalPredictions,
-        correctPredictions,
-        parameters: {
-          algorithm: algorithms[algIndex],
-          features: featuresList[featIndex],
-          timeWindow: 24 * (Math.floor(Math.random() * 7) + 1), // 1-7天
-          minConfidence: Math.floor(60 + Math.random() * 30) // 60-90%
-        },
-        createdAt: new Date(createdAt).toISOString(),
-        updatedAt: new Date(updatedAt).toISOString()
-      });
-    }
     
     return rules;
   };
@@ -474,6 +427,13 @@ const ModulePredictive = () => {
               >
                 <Plus className="w-4 h-4 mr-1" />
                 创建新规则
+              </button>
+              <button
+                onClick={() => {/* TODO: 添加插件安装功能 */}}
+                className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 flex items-center"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                安装预测插件
               </button>
               <button
                 onClick={() => {/* 刷新数据 */}}
@@ -1201,10 +1161,11 @@ const ModulePredictive = () => {
                     <select className="w-full p-2 border border-gray-300 rounded-md">
                       <option value="">选择算法</option>
                       <option value="arima">ARIMA时间序列</option>
-                      <option value="lstm">LSTM深度学习</option>
-                      <option value="random_forest">随机森林回归</option>
-                      <option value="isolation_forest">隔离森林异常检测</option>
-                      <option value="xgboost">XGBoost分类器</option>
+                      <option value="sarima">SARIMA时间序列</option>
+                      <option value="prophet">Prophet预测</option>
+                      <option value="isolation_forest">Isolation Forest异常检测</option>
+                      <option value="kmeans">KMeans聚类</option>
+                      <option value="rule_engine">规则引擎</option>
                     </select>
                   </div>
                   
