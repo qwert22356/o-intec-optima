@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle, Server, Network, ArrowUpDown, ArrowDown, ArrowUp, Wind, Thermometer, Cpu, Layers, Settings, PlugZap, ListFilter, Router } from 'lucide-react';
-import { MOCK_DATA } from '../lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import SwitchPanel from '../components/SwitchPanel';
+import PortDetailsDialog from '../components/PortDetailsDialog';
+import { MOCK_DATA, formatBytes } from '../lib/utils';
+import type { Port } from '../components/SwitchPanel';
 
 // 定义类型接口
 interface NetworkInterface {
@@ -251,6 +255,26 @@ const DeviceStatusCard: React.FC<DeviceStatusCardProps> = ({ title, status, icon
   </div>
 );
 
+// 生成模拟端口数据
+const generateMockPorts = (): Port[] => {
+  return Array.from({ length: 48 }, (_, i) => ({
+    id: `port-${i + 1}`,
+    name: `Ethernet${i + 1}`,
+    status: Math.random() > 0.2 ? 'up' : 'error',
+    moduleInserted: Math.random() > 0.3,
+    speed: '100G',
+    mtu: 9216,
+    stats: {
+      rxBytes: Math.floor(Math.random() * 1024 * 1024 * 1024),
+      txBytes: Math.floor(Math.random() * 1024 * 1024 * 1024),
+      drops: Math.floor(Math.random() * 100),
+      crcErrors: Math.floor(Math.random() * 10),
+      frameErrors: Math.floor(Math.random() * 10),
+      flopCount: Math.floor(Math.random() * 5),
+    }
+  }));
+};
+
 export default function Dashboard() {
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
   const [opticalModules, setOpticalModules] = useState<OpticalModule[]>([]);
@@ -262,6 +286,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState("device1");
   const [devices, setDevices] = useState<{id: string, name: string, type: string, interfaces: number}[]>([]);
+  const [selectedPort, setSelectedPort] = useState<Port | null>(null);
+  const ports = generateMockPorts();
 
   // 模拟从gNMI获取设备列表
   useEffect(() => {
@@ -401,179 +427,117 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* 设备选择器 */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 md:mb-0">设备选择</h2>
-          
-          <div className="flex flex-wrap gap-2">
-            {devices.map(device => (
-              <button
-                key={device.id}
-                onClick={() => setSelectedDevice(device.id)}
-                className={`px-3 py-2 rounded-md text-sm ${
-                  selectedDevice === device.id
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">仪表盘</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-lg font-semibold mb-2">系统状态</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-green-600 text-2xl font-bold">{MOCK_DATA.healthScore}</div>
+              <div className="text-sm text-gray-600">健康评分</div>
+            </div>
+            <div className="bg-red-50 p-4 rounded-lg">
+              <div className="text-red-600 text-2xl font-bold">{MOCK_DATA.criticalModules}</div>
+              <div className="text-sm text-gray-600">告警模块</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-lg font-semibold mb-2">最近告警</h2>
+          <div className="space-y-2">
+            {MOCK_DATA.recentAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`p-2 rounded ${
+                  alert.severity === 'high' ? 'bg-red-50' : 'bg-yellow-50'
                 }`}
               >
-                <div className="flex items-center">
-                  <Router className="w-4 h-4 mr-2" />
-                  <span>{device.name}</span>
+                <div className="text-sm">{alert.message}</div>
+                <div className="text-xs text-gray-500">
+                  {new Date(alert.timestamp).toLocaleString()}
                 </div>
-                <div className="text-xs mt-1 opacity-80">
-                  {device.type} | {device.interfaces}端口
-                </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* 顶部统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="健康评分"
-          value={`${MOCK_DATA.healthScore}%`}
-          icon={Activity}
-        />
-        <StatCard
-          title="在线模块"
-          value={opticalModules.filter(m => m.present).length}
-          icon={Cpu}
-        />
-        <StatCard
-          title="接口状态"
-          value={`${interfaceStats.up}/${interfaceStats.total}`}
-          icon={Network}
-        />
-        <StatCard
-          title="错误统计"
-          value={interfaceStats.errors + interfaceStats.crcErrors + interfaceStats.frameErrors}
-          icon={AlertTriangle}
-          className={interfaceStats.errors > 0 ? "bg-red-50" : ""}
-        />
-      </div>
-
-      {/* 错误统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="text-sm text-gray-500 mb-1">丢包数量</div>
-          <div className="text-2xl font-semibold">{interfaceStats.drops}</div>
-          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.drops > 0).length} 个接口</div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="text-sm text-gray-500 mb-1">CRC错误</div>
-          <div className="text-2xl font-semibold">{interfaceStats.crcErrors}</div>
-          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.crcErrors > 0).length} 个接口</div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="text-sm text-gray-500 mb-1">帧错误</div>
-          <div className="text-2xl font-semibold">{interfaceStats.frameErrors}</div>
-          <div className="text-xs text-gray-500 mt-1">来自 {interfaces.filter(i => i.frameErrors > 0).length} 个接口</div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-4">设备选择</h2>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {devices.map((device) => (
+            <button
+              key={device.id}
+              onClick={() => setSelectedDevice(device.id)}
+              className={`px-4 py-2 rounded ${
+                selectedDevice === device.id
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              {device.name}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 接口状态表格 */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex justify-between mb-4 items-center">
-          <h2 className="text-lg font-semibold text-gray-900">接口状态</h2>
-          <div className="flex space-x-4 text-sm">
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-green-500 mr-1"></div>
-              <span className="text-gray-700">激活: {interfaceStats.up}</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-red-500 mr-1"></div>
-              <span className="text-gray-700">断开: {interfaceStats.down}</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-gray-300 mr-1"></div>
-              <span className="text-gray-700">管理禁用: {interfaceStats.adminDown}</span>
-            </div>
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <InterfaceTable interfaces={interfaces} />
-        )}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-4">交换机面板</h2>
+        <SwitchPanel
+          ports={ports}
+          onPortClick={setSelectedPort}
+        />
       </div>
 
-      {/* 光模块和设备信息 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 光模块信息 */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">光模块信息</h2>
-          
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {opticalModules.map((module) => (
-                <OpticalModuleCard key={module.name} module={module} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 设备状态和告警 */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">设备状态</h2>
-            
-            <div className="space-y-4">
-              <DeviceStatusCard 
-                title="风扇状态" 
-                status={deviceStatus.fans} 
-                icon={Wind} 
-              />
-              
-              <DeviceStatusCard 
-                title="温度状态" 
-                status={deviceStatus.temperature} 
-                icon={Thermometer} 
-              />
-              
-              <DeviceStatusCard 
-                title="电源状态" 
-                status={deviceStatus.power} 
-                icon={PlugZap} 
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">最近告警</h2>
-            <div className="space-y-4">
-              {MOCK_DATA.recentAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="flex items-center p-4 bg-gray-50 rounded-lg"
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-4">接口状态</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ports.filter(port => port.moduleInserted).map((port) => (
+            <div
+              key={port.id}
+              className="bg-gray-50 p-4 rounded-lg cursor-pointer hover:bg-gray-100"
+              onClick={() => setSelectedPort(port)}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">{port.name}</span>
+                <span
+                  className={`px-2 py-1 rounded text-sm ${
+                    port.status === 'up'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}
                 >
-                  <AlertTriangle className={`w-5 h-5 ${
-                    alert.severity === 'high' ? 'text-red-500' : 'text-yellow-500'
-                  }`} />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-900">{alert.message}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(alert.timestamp).toLocaleString()}
-                    </p>
+                  {port.status === 'up' ? '正常' : '异常'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-600">
+                <div>速率: {port.speed}</div>
+                <div>MTU: {port.mtu}</div>
+                <div className="flex justify-between mt-1">
+                  <div className="flex items-center">
+                    <ArrowDown className="w-4 h-4 text-green-500 mr-1" />
+                    <span>{formatBytes(port.stats.rxBytes)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <ArrowUp className="w-4 h-4 text-blue-500 mr-1" />
+                    <span>{formatBytes(port.stats.txBytes)}</span>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
+
+      {selectedPort && (
+        <PortDetailsDialog
+          port={selectedPort}
+          onClose={() => setSelectedPort(null)}
+        />
+      )}
     </div>
   );
 }

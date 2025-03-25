@@ -273,12 +273,50 @@ function createMockTopology(): Topology {
 export const MOCK_DATA = {
   healthScore: 85,
   criticalModules: 3,
-  totalModules: 200, // 更新为实际数量
+  totalModules: 200,
   recentAlerts: [
     { id: 1, message: '模块 MOD-001 温度过高', severity: 'high', timestamp: new Date().toISOString() },
     { id: 2, message: '模块 MOD-002 光功率异常', severity: 'medium', timestamp: new Date().toISOString() },
   ],
   topology: createMockTopology(),
+  // 仪表盘数据
+  devices: [
+    { id: 'dev1', name: 'Switch-01', type: 'Spine', interfaces: 48, status: 'active' },
+    { id: 'dev2', name: 'Switch-02', type: 'Leaf', interfaces: 32, status: 'active' },
+    { id: 'dev3', name: 'Switch-03', type: 'Border', interfaces: 24, status: 'warning' }
+  ],
+  // 光模块监控数据
+  modules: Array.from({ length: 20 }, (_, i) => ({
+    id: `MOD-${(i + 1).toString().padStart(3, '0')}`,
+    name: `光模块-${i + 1}`,
+    health: Math.floor(Math.random() * 100),
+    temperature: (Math.random() * 30 + 40).toFixed(1),
+    rxPower: (-Math.random() * 5 - 5).toFixed(2),
+    txPower: (-Math.random() * 3 - 3).toFixed(2),
+    voltage: (3.2 + Math.random() * 0.3).toFixed(2),
+    current: (Math.random() * 50 + 20).toFixed(1),
+    portIndex: i + 1,
+    device: {
+      id: `dev${Math.floor(i/8) + 1}`,
+      name: `Switch-${Math.floor(i/8) + 1}`,
+      type: ['Spine', 'Leaf', 'Border'][Math.floor(i/8)],
+      ip: `192.168.1.${Math.floor(i/8) + 1}`
+    },
+    rack: {
+      id: `rack${Math.floor(i/4) + 1}`,
+      name: `机架-${Math.floor(i/4) + 1}`
+    },
+    room: {
+      id: `room${Math.floor(i/10) + 1}`,
+      name: `机房-${Math.floor(i/10) + 1}`
+    },
+    dataCenter: {
+      id: 'dc1',
+      name: '北京数据中心'
+    },
+    lastUpdated: new Date(Date.now() - Math.random() * 86400000).toISOString()
+  })),
+  // 预测分析数据
   lifePrediction: {
     modules: [
       {
@@ -311,5 +349,30 @@ export const MOCK_DATA = {
       averageLifespan: "3.2年",
       replacementRate: "2.8%"
     }
+  },
+  // 数据统计
+  statistics: {
+    errorRates: {
+      daily: Array.from({ length: 30 }, () => Math.floor(Math.random() * 100)),
+      weekly: Array.from({ length: 12 }, () => Math.floor(Math.random() * 500)),
+      monthly: Array.from({ length: 12 }, () => Math.floor(Math.random() * 2000))
+    },
+    performance: {
+      uptime: "99.98%",
+      avgResponseTime: "2.3ms",
+      throughput: "45.6Gbps"
+    }
   }
 };
+
+export function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}

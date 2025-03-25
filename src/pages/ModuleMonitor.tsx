@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MOCK_DATA } from '../lib/utils';
-import { AlertCircle, Search, ArrowUpDown, Filter, ChevronDown, X, Download, FileJson, FileSpreadsheet } from 'lucide-react';
+import { AlertCircle, Search, ArrowUpDown, Filter, ChevronDown, X, Download, FileJson, FileSpreadsheet, ArrowUp, ArrowDown, CheckCircle, AlertTriangle, XCircle, Eye } from 'lucide-react';
 
 // 定义模块数据接口
 interface ModuleData {
@@ -105,6 +105,13 @@ interface SortConfig {
 // 定义导出选项类型
 type ExportFormat = 'csv' | 'json' | 'excel';
 
+// 定义分页配置接口
+interface PaginationConfig {
+  currentPage: number;
+  pageSize: number;
+  total: number;
+}
+
 const ModuleMonitor = () => {
   const [moduleData, setModuleData] = useState<ModuleData[]>([]);
   const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
@@ -124,6 +131,12 @@ const ModuleMonitor = () => {
   });
   const [showExportOptions, setShowExportOptions] = useState<boolean>(false);
   const exportOptionsRef = useRef<HTMLDivElement>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [pagination, setPagination] = useState<PaginationConfig>({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  });
   
   // 初始化数据
   useEffect(() => {
@@ -138,6 +151,15 @@ const ModuleMonitor = () => {
       console.error(err);
     }
   }, []);
+  
+  // 更新分页总数
+  useEffect(() => {
+    const filteredData = getFilteredData();
+    setPagination(prev => ({
+      ...prev,
+      total: filteredData.length
+    }));
+  }, [moduleData, searchTerm, filters]);
   
   // 点击外部关闭导出选项
   useEffect(() => {
@@ -177,6 +199,30 @@ const ModuleMonitor = () => {
       
       return true;
     });
+  };
+  
+  // 获取分页数据
+  const getPaginatedData = (data: ModuleData[]) => {
+    const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
+    const endIndex = startIndex + pagination.pageSize;
+    return data.slice(startIndex, endIndex);
+  };
+  
+  // 处理页码变化
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // 处理每页显示数量变化
+  const handlePageSizeChange = (newSize: number) => {
+    setPagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // 切换每页显示数量时重置到第一页
+    }));
   };
   
   // 排序数据
@@ -243,6 +289,12 @@ const ModuleMonitor = () => {
       status: ''
     });
     setSearchTerm('');
+  };
+  
+  // 查看模块详情
+  const viewModuleDetails = (module: ModuleData) => {
+    setSelectedModule(module);
+    setShowModal(true);
   };
   
   // 导出数据函数
@@ -380,79 +432,135 @@ const ModuleMonitor = () => {
   const renderTable = () => {
     const filteredData = getFilteredData();
     const sortedData = getSortedData(filteredData);
+    const paginatedData = getPaginatedData(sortedData);
     
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left text-gray-700">
-          <thead className="text-xs text-gray-600 uppercase bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('health')}>
-                <div className="flex items-center">
-                  状态
-                  {sortConfig.key === 'health' && (
-                    <ChevronDown className={`ml-1 w-4 h-4 ${sortConfig.direction === 'desc' ? 'transform rotate-180' : ''}`} />
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3">模块名称</th>
-              <th className="px-4 py-3">数据中心</th>
-              <th className="px-4 py-3">机房</th>
-              <th className="px-4 py-3">机架</th>
-              <th className="px-4 py-3">设备</th>
-              <th className="px-4 py-3">IP地址</th>
-              <th className="px-4 py-3">端口</th>
-              <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('temperature')}>
-                <div className="flex items-center">
-                  温度
-                  {sortConfig.key === 'temperature' && (
-                    <ChevronDown className={`ml-1 w-4 h-4 ${sortConfig.direction === 'desc' ? 'transform rotate-180' : ''}`} />
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedData.length === 0 ? (
+      <div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-gray-700">
+            <thead className="text-xs text-gray-600 uppercase bg-gray-100">
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-gray-500">
-                  没有找到符合条件的光模块
-                </td>
+                <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('health')}>
+                  <div className="flex items-center">
+                    状态
+                    {sortConfig.key === 'health' && (
+                      <ChevronDown className={`ml-1 w-4 h-4 ${sortConfig.direction === 'desc' ? 'transform rotate-180' : ''}`} />
+                    )}
+                  </div>
+                </th>
+                <th className="px-4 py-3">模块名称</th>
+                <th className="px-4 py-3">设备</th>
+                <th className="px-4 py-3">IP地址</th>
+                <th className="px-4 py-3">端口</th>
+                <th className="px-4 py-3 cursor-pointer" onClick={() => handleSort('temperature')}>
+                  <div className="flex items-center">
+                    温度
+                    {sortConfig.key === 'temperature' && (
+                      <ChevronDown className={`ml-1 w-4 h-4 ${sortConfig.direction === 'desc' ? 'transform rotate-180' : ''}`} />
+                    )}
+                  </div>
+                </th>
+                <th className="px-4 py-3 sticky right-0 bg-gray-100">操作</th>
               </tr>
-            ) : (
-              sortedData.map(module => (
-                <tr 
-                  key={module.id} 
-                  className={`border-b hover:bg-gray-50 ${selectedModule?.id === module.id ? 'bg-blue-50' : ''}`}
-                >
-                  <td className="px-4 py-4">
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full mr-2 ${getStatusInfo(module.health).color}`}></div>
-                      <span>{getStatusInfo(module.health).text}</span>
-                      <span className="text-xs text-gray-500 ml-2">{module.health}分</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 font-medium">{module.name}</td>
-                  <td className="px-4 py-4">{module.dataCenter?.name || '-'}</td>
-                  <td className="px-4 py-4">{module.room?.name || '-'}</td>
-                  <td className="px-4 py-4">{module.rack?.name || '-'}</td>
-                  <td className="px-4 py-4">{module.device?.name || '-'}</td>
-                  <td className="px-4 py-4 font-mono">{module.device?.ip || '-'}</td>
-                  <td className="px-4 py-4">{module.portIndex}</td>
-                  <td className="px-4 py-4">{module.temperature}°C</td>
-                  <td className="px-4 py-4">
-                    <button 
-                      onClick={() => setSelectedModule(module)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      详情
-                    </button>
+            </thead>
+            <tbody>
+              {paginatedData.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                    没有找到符合条件的光模块
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                paginatedData.map(module => (
+                  <tr 
+                    key={module.id} 
+                    className={`border-b hover:bg-gray-50 ${selectedModule?.id === module.id ? 'bg-blue-50' : ''}`}
+                  >
+                    <td className="px-4 py-4">
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${getStatusInfo(module.health).color}`}></div>
+                        <span>{getStatusInfo(module.health).text}</span>
+                        <span className="text-xs text-gray-500 ml-2">{module.health}分</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 font-medium">{module.name}</td>
+                    <td className="px-4 py-4">{module.device?.name || '-'}</td>
+                    <td className="px-4 py-4 font-mono">{module.device?.ip || '-'}</td>
+                    <td className="px-4 py-4">{module.portIndex}</td>
+                    <td className="px-4 py-4">{module.temperature}°C</td>
+                    <td className="px-4 py-4 sticky right-0 bg-white border-l border-gray-100">
+                      <button 
+                        onClick={() => viewModuleDetails(module)}
+                        className="flex items-center text-blue-600 hover:text-blue-800 text-xs bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors"
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        查看
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* 分页控件 */}
+        {filteredData.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between px-4 py-4 border-t">
+            <div className="flex items-center text-sm text-gray-500">
+              显示 {filteredData.length > 0 ? (pagination.currentPage - 1) * pagination.pageSize + 1 : 0} - {Math.min(pagination.currentPage * pagination.pageSize, filteredData.length)} 条，共 {filteredData.length} 条
+            </div>
+            
+            <div className="flex items-center mt-2 sm:mt-0">
+              <div className="mr-4">
+                <select 
+                  value={pagination.pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="p-1 px-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10条/页</option>
+                  <option value={20}>20条/页</option>
+                  <option value={50}>50条/页</option>
+                  <option value={100}>100条/页</option>
+                </select>
+              </div>
+              
+              <div className="flex">
+                <button 
+                  onClick={() => handlePageChange(1)}
+                  disabled={pagination.currentPage === 1}
+                  className="px-3 py-1 rounded-l-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  首页
+                </button>
+                <button 
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={pagination.currentPage === 1}
+                  className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  上一页
+                </button>
+                <div className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium bg-blue-50">
+                  {pagination.currentPage}
+                </div>
+                <button 
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage * pagination.pageSize >= filteredData.length}
+                  className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一页
+                </button>
+                <button 
+                  onClick={() => handlePageChange(Math.ceil(filteredData.length / pagination.pageSize))}
+                  disabled={pagination.currentPage * pagination.pageSize >= filteredData.length}
+                  className="px-3 py-1 rounded-r-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  末页
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -814,25 +922,171 @@ const ModuleMonitor = () => {
           {renderStatsSummary()}
           {renderFilters()}
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 bg-white rounded-lg shadow">
-              {renderTable()}
-            </div>
-            
-            <div>
-              {selectedModule ? (
-                renderDetailPanel()
-              ) : (
-                <div className="bg-white p-5 rounded-lg shadow-md h-full flex items-center justify-center text-gray-400">
-                  <div className="text-center">
-                    <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                    <p>选择一个光模块查看详情</p>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="bg-white rounded-lg shadow">
+            {renderTable()}
           </div>
         </>
+      )}
+
+      {/* 模块详情弹窗 */}
+      {showModal && selectedModule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold">模块详情</h2>
+              <button 
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-4">基本信息</h3>
+                  <table className="w-full">
+                    <tbody className="divide-y divide-gray-200">
+                      <tr>
+                        <td className="py-2 text-gray-600">名称</td>
+                        <td className="py-2 font-medium">{selectedModule.name}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">类型</td>
+                        <td className="py-2 font-medium">{selectedModule.device?.type || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">端口</td>
+                        <td className="py-2 font-medium">{selectedModule.portIndex}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">厂商</td>
+                        <td className="py-2 font-medium">{selectedModule.device?.name || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">序列号</td>
+                        <td className="py-2 font-medium">SN-{selectedModule.id.slice(-6) || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">运行时间</td>
+                        <td className="py-2 font-medium">{Math.floor(Math.random() * 365) + 1} 天</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">状态</td>
+                        <td className="py-2 font-medium">{getStatusInfo(selectedModule.health).text}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <h3 className="text-lg font-medium mb-4 mt-6">位置信息</h3>
+                  <table className="w-full">
+                    <tbody className="divide-y divide-gray-200">
+                      <tr>
+                        <td className="py-2 text-gray-600">数据中心</td>
+                        <td className="py-2 font-medium">{selectedModule.dataCenter?.name || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">机房</td>
+                        <td className="py-2 font-medium">{selectedModule.room?.name || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">机架</td>
+                        <td className="py-2 font-medium">{selectedModule.rack?.name || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">设备</td>
+                        <td className="py-2 font-medium">{selectedModule.device?.name || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 text-gray-600">IP地址</td>
+                        <td className="py-2 font-mono font-medium">{selectedModule.device?.ip || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-medium mb-4">性能参数</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">温度</span>
+                          <span className="font-medium">{selectedModule.temperature}°C</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              Number(selectedModule.temperature) > 45 ? 'bg-red-500' : 
+                              Number(selectedModule.temperature) > 35 ? 'bg-amber-500' : 'bg-green-500'
+                            }`} 
+                            style={{ width: `${Math.min(100, (Number(selectedModule.temperature) / 70) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">电压</span>
+                          <span className="font-medium">{selectedModule.voltage} V</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="h-2 rounded-full bg-blue-500" 
+                            style={{ width: `${Math.min(100, (Number(selectedModule.voltage) / 5) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">接收功率</span>
+                          <span className="font-medium">{selectedModule.rxPower} dBm</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="h-2 rounded-full bg-green-500" 
+                            style={{ width: `${Math.min(100, ((Number(selectedModule.rxPower) + 20) / 20) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">发送功率</span>
+                          <span className="font-medium">{selectedModule.txPower} dBm</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="h-2 rounded-full bg-indigo-500" 
+                            style={{ width: `${Math.min(100, ((Number(selectedModule.txPower) + 10) / 10) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <h4 className="font-medium mb-2">诊断信息</h4>
+                    <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                      {selectedModule.health >= 80 ? '模块运行正常，所有参数在正常范围内。' : selectedModule.health >= 60 ? '模块温度偏高，建议关注。' : '模块出现异常，建议检查或更换。'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t p-4 flex justify-end">
+              <button 
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

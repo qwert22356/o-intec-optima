@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MOCK_DATA } from '../lib/utils';
 import { 
   AlertCircle, 
@@ -14,11 +14,8 @@ import {
   CheckCircle2,
   History,
   Plus,
-  RefreshCw,
-  ArrowUpRight,
-  ArrowDownRight
+  RefreshCw
 } from 'lucide-react';
-import * as d3 from 'd3';
 
 // 定义模块数据接口
 interface ModuleData {
@@ -79,6 +76,13 @@ interface PredictionRule {
   industryRecommendation?: string;
 }
 
+// 定义分页配置接口
+interface PaginationConfig {
+  currentPage: number;
+  pageSize: number;
+  total: number;
+}
+
 // 在参数部分添加行业推荐数据结构
 interface IndustryRecommendation {
   industry: string;
@@ -126,23 +130,6 @@ const industryRecommendations: IndustryRecommendation[] = [
   }
 ];
 
-interface Prediction {
-  date: string;
-  remainingDays: number;
-}
-
-interface Module {
-  id: string;
-  predictions: Prediction[];
-}
-
-interface WarningModule {
-  id: string;
-  prediction: string;
-  temp: string;
-  status: 'warning' | 'danger';
-}
-
 const ModulePredictive = () => {
   const [moduleData, setModuleData] = useState<ModuleData[]>([]);
   const [predictionRules, setPredictionRules] = useState<PredictionRule[]>([]);
@@ -158,7 +145,16 @@ const ModulePredictive = () => {
   const [ruleFilterStatus, setRuleFilterStatus] = useState<string>('all');
   const [showTrendModal, setShowTrendModal] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<string | null>(null);
-  const chartRef = useRef<HTMLDivElement>(null);
+  const [modulePagination, setModulePagination] = useState<PaginationConfig>({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  });
+  const [rulePagination, setRulePagination] = useState<PaginationConfig>({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  });
   
   // 初始化数据
   useEffect(() => {
@@ -180,6 +176,21 @@ const ModulePredictive = () => {
       console.error(err);
     }
   }, []);
+  
+  // 更新分页总数
+  useEffect(() => {
+    const filteredModules = getFilteredModules();
+    setModulePagination(prev => ({
+      ...prev,
+      total: filteredModules.length
+    }));
+    
+    const filteredRules = getFilteredRules();
+    setRulePagination(prev => ({
+      ...prev,
+      total: filteredRules.length
+    }));
+  }, [moduleData, searchTerm, showFailingOnly, predictionRules, ruleSearchTerm, ruleFilterStatus]);
   
   // 从MOCK_DATA中提取光模块数据并添加预测字段
   const extractModuleData = (): ModuleData[] => {
@@ -312,7 +323,15 @@ const ModulePredictive = () => {
       return true;
     });
   };
-  
+
+  // 获取分页后的模块数据
+  const getPaginatedModules = () => {
+    const filteredData = getFilteredModules();
+    const startIndex = (modulePagination.currentPage - 1) * modulePagination.pageSize;
+    const endIndex = startIndex + modulePagination.pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  };
+
   // 获取过滤后的规则
   const getFilteredRules = () => {
     return predictionRules.filter(rule => {
@@ -332,6 +351,48 @@ const ModulePredictive = () => {
       
       return true;
     });
+  };
+  
+  // 获取分页后的规则数据
+  const getPaginatedRules = () => {
+    const filteredData = getFilteredRules();
+    const startIndex = (rulePagination.currentPage - 1) * rulePagination.pageSize;
+    const endIndex = startIndex + rulePagination.pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  };
+
+  // 处理模块页码变化
+  const handleModulePageChange = (newPage: number) => {
+    setModulePagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // 处理规则页码变化
+  const handleRulePageChange = (newPage: number) => {
+    setRulePagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // 处理每页显示数量变化
+  const handleModulePageSizeChange = (newSize: number) => {
+    setModulePagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // 切换每页显示数量时重置到第一页
+    }));
+  };
+
+  // 处理规则每页显示数量变化
+  const handleRulePageSizeChange = (newSize: number) => {
+    setRulePagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // 切换每页显示数量时重置到第一页
+    }));
   };
 
   // 添加导出详情函数
@@ -424,105 +485,6 @@ const ModulePredictive = () => {
       };
     }
   }, [exportFormat]);
-
-  useEffect(() => {
-    if (!chartRef.current) return;
-
-    // Clear previous chart
-    d3.select(chartRef.current).selectAll("*").remove();
-
-    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
-    const width = chartRef.current.clientWidth - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
-
-    const svg = d3.select(chartRef.current)
-      .append("svg")
-      .attr("width", width + margin.left + margin.right)
-      .attr("height", height + margin.top + margin.bottom)
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    // Process data
-    const allDates = MOCK_DATA.lifePrediction.modules[0].predictions.map(d => new Date(d.date));
-    
-    const x = d3.scaleTime()
-      .domain([d3.min(allDates) || new Date(), d3.max(allDates) || new Date()])
-      .range([0, width]);
-
-    const y = d3.scaleLinear()
-      .domain([0, 400])
-      .range([height, 0]);
-
-    // Add X axis
-    svg.append("g")
-      .attr("transform", `translate(0,${height})`)
-      .call(d3.axisBottom(x).ticks(6))
-      .style("font-size", "12px");
-
-    // Add Y axis
-    svg.append("g")
-      .call(d3.axisLeft(y).ticks(5))
-      .style("font-size", "12px");
-
-    // Add Y axis label
-    svg.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 0 - margin.left)
-      .attr("x", 0 - (height / 2))
-      .attr("dy", "1em")
-      .style("text-anchor", "middle")
-      .text("剩余寿命 (天)");
-
-    // Create line generator
-    const line = d3.line<Prediction>()
-      .x(d => x(new Date(d.date)))
-      .y(d => y(d.remainingDays))
-      .curve(d3.curveMonotoneX);
-
-    // Add lines for each module
-    const colors = ['#2563eb', '#16a34a'];
-    MOCK_DATA.lifePrediction.modules.forEach((module, i) => {
-      svg.append("path")
-        .datum(module.predictions)
-        .attr("fill", "none")
-        .attr("stroke", colors[i])
-        .attr("stroke-width", 2)
-        .attr("d", line);
-
-      // Add dots
-      svg.selectAll(`dot-${i}`)
-        .data(module.predictions)
-        .enter()
-        .append("circle")
-        .attr("cx", d => x(new Date(d.date)))
-        .attr("cy", d => y(d.remainingDays))
-        .attr("r", 4)
-        .attr("fill", colors[i]);
-    });
-
-    // Add legend
-    const legend = svg.append("g")
-      .attr("font-family", "sans-serif")
-      .attr("font-size", 10)
-      .attr("text-anchor", "start")
-      .selectAll("g")
-      .data(MOCK_DATA.lifePrediction.modules)
-      .enter().append("g")
-      .attr("transform", (d, i) => `translate(${width - 100},${i * 20})`);
-
-    legend.append("rect")
-      .attr("x", 0)
-      .attr("width", 15)
-      .attr("height", 15)
-      .attr("fill", (d, i) => colors[i]);
-
-    legend.append("text")
-      .attr("x", 24)
-      .attr("y", 9.5)
-      .attr("dy", "0.32em")
-      .text(d => d.id);
-
-  }, []);
 
   // 渲染主界面
   return (
@@ -656,7 +618,7 @@ const ModulePredictive = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {getFilteredModules().map((module) => (
+                        {getPaginatedModules().map((module) => (
                           <tr key={module.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 whitespace-nowrap">
                               {module.name}
@@ -713,9 +675,67 @@ const ModulePredictive = () => {
                     </table>
                   </div>
                   
-                  {getFilteredModules().length === 0 && (
+                  {getPaginatedModules().length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                       未找到符合条件的光模块
+                    </div>
+                  )}
+                  
+                  {/* 添加模块分页控件 */}
+                  {getFilteredModules().length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between px-4 py-4 border-t border-gray-200 mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        显示 {getFilteredModules().length > 0 ? (modulePagination.currentPage - 1) * modulePagination.pageSize + 1 : 0} - {Math.min(modulePagination.currentPage * modulePagination.pageSize, getFilteredModules().length)} 条，共 {getFilteredModules().length} 条
+                      </div>
+                      
+                      <div className="flex items-center mt-2 sm:mt-0">
+                        <div className="mr-4">
+                          <select 
+                            value={modulePagination.pageSize}
+                            onChange={(e) => handleModulePageSizeChange(Number(e.target.value))}
+                            className="p-1 px-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value={10}>10条/页</option>
+                            <option value={20}>20条/页</option>
+                            <option value={50}>50条/页</option>
+                            <option value={100}>100条/页</option>
+                          </select>
+                        </div>
+                        
+                        <div className="flex">
+                          <button 
+                            onClick={() => handleModulePageChange(1)}
+                            disabled={modulePagination.currentPage === 1}
+                            className="px-3 py-1 rounded-l-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            首页
+                          </button>
+                          <button 
+                            onClick={() => handleModulePageChange(modulePagination.currentPage - 1)}
+                            disabled={modulePagination.currentPage === 1}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            上一页
+                          </button>
+                          <div className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium bg-blue-50">
+                            {modulePagination.currentPage}
+                          </div>
+                          <button 
+                            onClick={() => handleModulePageChange(modulePagination.currentPage + 1)}
+                            disabled={modulePagination.currentPage * modulePagination.pageSize >= getFilteredModules().length}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            下一页
+                          </button>
+                          <button 
+                            onClick={() => handleModulePageChange(Math.ceil(getFilteredModules().length / modulePagination.pageSize))}
+                            disabled={modulePagination.currentPage * modulePagination.pageSize >= getFilteredModules().length}
+                            className="px-3 py-1 rounded-r-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            末页
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -746,7 +766,7 @@ const ModulePredictive = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {getFilteredRules().map((rule) => (
+                    {getPaginatedRules().map((rule) => (
                       <div 
                         key={rule.id} 
                         className="border rounded-lg overflow-hidden hover:shadow-md cursor-pointer"
@@ -792,9 +812,67 @@ const ModulePredictive = () => {
                     ))}
                   </div>
                   
-                  {getFilteredRules().length === 0 && (
+                  {getPaginatedRules().length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                       未找到符合条件的预测规则
+                    </div>
+                  )}
+                  
+                  {/* 添加规则分页控件 */}
+                  {getFilteredRules().length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between px-4 py-4 border-t border-gray-200 mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        显示 {getFilteredRules().length > 0 ? (rulePagination.currentPage - 1) * rulePagination.pageSize + 1 : 0} - {Math.min(rulePagination.currentPage * rulePagination.pageSize, getFilteredRules().length)} 条，共 {getFilteredRules().length} 条
+                      </div>
+                      
+                      <div className="flex items-center mt-2 sm:mt-0">
+                        <div className="mr-4">
+                          <select 
+                            value={rulePagination.pageSize}
+                            onChange={(e) => handleRulePageSizeChange(Number(e.target.value))}
+                            className="p-1 px-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value={10}>10条/页</option>
+                            <option value={20}>20条/页</option>
+                            <option value={50}>50条/页</option>
+                            <option value={100}>100条/页</option>
+                          </select>
+                        </div>
+                        
+                        <div className="flex">
+                          <button 
+                            onClick={() => handleRulePageChange(1)}
+                            disabled={rulePagination.currentPage === 1}
+                            className="px-3 py-1 rounded-l-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            首页
+                          </button>
+                          <button 
+                            onClick={() => handleRulePageChange(rulePagination.currentPage - 1)}
+                            disabled={rulePagination.currentPage === 1}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            上一页
+                          </button>
+                          <div className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium bg-blue-50">
+                            {rulePagination.currentPage}
+                          </div>
+                          <button 
+                            onClick={() => handleRulePageChange(rulePagination.currentPage + 1)}
+                            disabled={rulePagination.currentPage * rulePagination.pageSize >= getFilteredRules().length}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            下一页
+                          </button>
+                          <button 
+                            onClick={() => handleRulePageChange(Math.ceil(getFilteredRules().length / rulePagination.pageSize))}
+                            disabled={rulePagination.currentPage * rulePagination.pageSize >= getFilteredRules().length}
+                            className="px-3 py-1 rounded-r-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            末页
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                   
