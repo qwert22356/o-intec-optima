@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MOCK_DATA } from '../lib/utils';
 import { 
   AlertCircle, 
@@ -14,8 +14,11 @@ import {
   CheckCircle2,
   History,
   Plus,
-  RefreshCw
+  RefreshCw,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react';
+import * as d3 from 'd3';
 
 // 定义模块数据接口
 interface ModuleData {
@@ -123,6 +126,23 @@ const industryRecommendations: IndustryRecommendation[] = [
   }
 ];
 
+interface Prediction {
+  date: string;
+  remainingDays: number;
+}
+
+interface Module {
+  id: string;
+  predictions: Prediction[];
+}
+
+interface WarningModule {
+  id: string;
+  prediction: string;
+  temp: string;
+  status: 'warning' | 'danger';
+}
+
 const ModulePredictive = () => {
   const [moduleData, setModuleData] = useState<ModuleData[]>([]);
   const [predictionRules, setPredictionRules] = useState<PredictionRule[]>([]);
@@ -138,6 +158,7 @@ const ModulePredictive = () => {
   const [ruleFilterStatus, setRuleFilterStatus] = useState<string>('all');
   const [showTrendModal, setShowTrendModal] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<string | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   
   // 初始化数据
   useEffect(() => {
@@ -403,6 +424,105 @@ const ModulePredictive = () => {
       };
     }
   }, [exportFormat]);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    // Clear previous chart
+    d3.select(chartRef.current).selectAll("*").remove();
+
+    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
+    const width = chartRef.current.clientWidth - margin.left - margin.right;
+    const height = 400 - margin.top - margin.bottom;
+
+    const svg = d3.select(chartRef.current)
+      .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Process data
+    const allDates = MOCK_DATA.lifePrediction.modules[0].predictions.map(d => new Date(d.date));
+    
+    const x = d3.scaleTime()
+      .domain([d3.min(allDates) || new Date(), d3.max(allDates) || new Date()])
+      .range([0, width]);
+
+    const y = d3.scaleLinear()
+      .domain([0, 400])
+      .range([height, 0]);
+
+    // Add X axis
+    svg.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(d3.axisBottom(x).ticks(6))
+      .style("font-size", "12px");
+
+    // Add Y axis
+    svg.append("g")
+      .call(d3.axisLeft(y).ticks(5))
+      .style("font-size", "12px");
+
+    // Add Y axis label
+    svg.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - margin.left)
+      .attr("x", 0 - (height / 2))
+      .attr("dy", "1em")
+      .style("text-anchor", "middle")
+      .text("剩余寿命 (天)");
+
+    // Create line generator
+    const line = d3.line<Prediction>()
+      .x(d => x(new Date(d.date)))
+      .y(d => y(d.remainingDays))
+      .curve(d3.curveMonotoneX);
+
+    // Add lines for each module
+    const colors = ['#2563eb', '#16a34a'];
+    MOCK_DATA.lifePrediction.modules.forEach((module, i) => {
+      svg.append("path")
+        .datum(module.predictions)
+        .attr("fill", "none")
+        .attr("stroke", colors[i])
+        .attr("stroke-width", 2)
+        .attr("d", line);
+
+      // Add dots
+      svg.selectAll(`dot-${i}`)
+        .data(module.predictions)
+        .enter()
+        .append("circle")
+        .attr("cx", d => x(new Date(d.date)))
+        .attr("cy", d => y(d.remainingDays))
+        .attr("r", 4)
+        .attr("fill", colors[i]);
+    });
+
+    // Add legend
+    const legend = svg.append("g")
+      .attr("font-family", "sans-serif")
+      .attr("font-size", 10)
+      .attr("text-anchor", "start")
+      .selectAll("g")
+      .data(MOCK_DATA.lifePrediction.modules)
+      .enter().append("g")
+      .attr("transform", (d, i) => `translate(${width - 100},${i * 20})`);
+
+    legend.append("rect")
+      .attr("x", 0)
+      .attr("width", 15)
+      .attr("height", 15)
+      .attr("fill", (d, i) => colors[i]);
+
+    legend.append("text")
+      .attr("x", 24)
+      .attr("y", 9.5)
+      .attr("dy", "0.32em")
+      .text(d => d.id);
+
+  }, []);
 
   // 渲染主界面
   return (
