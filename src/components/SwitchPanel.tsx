@@ -16,6 +16,21 @@ export interface Port {
     frameErrors: number;
     flopCount: number;
   };
+  moduleInfo?: {
+    vendor: string;
+    serialNumber: string;
+    partNumber?: string;
+    temperature?: string;
+    voltage?: string;
+    current?: string;
+    rxPower?: string;
+    txPower?: string;
+    location?: {
+      device?: string;
+      rack?: string;
+      room?: string;
+    };
+  };
 }
 
 interface SwitchPanelProps {

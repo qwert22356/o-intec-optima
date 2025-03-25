@@ -257,22 +257,47 @@ const DeviceStatusCard: React.FC<DeviceStatusCardProps> = ({ title, status, icon
 
 // 生成模拟端口数据
 const generateMockPorts = (): Port[] => {
-  return Array.from({ length: 48 }, (_, i) => ({
-    id: `port-${i + 1}`,
-    name: `Ethernet${i + 1}`,
-    status: Math.random() > 0.2 ? 'up' : 'error',
-    moduleInserted: Math.random() > 0.3,
-    speed: '100G',
-    mtu: 9216,
-    stats: {
-      rxBytes: Math.floor(Math.random() * 1024 * 1024 * 1024),
-      txBytes: Math.floor(Math.random() * 1024 * 1024 * 1024),
-      drops: Math.floor(Math.random() * 100),
-      crcErrors: Math.floor(Math.random() * 10),
-      frameErrors: Math.floor(Math.random() * 10),
-      flopCount: Math.floor(Math.random() * 5),
-    }
-  }));
+  const vendors = ['Cisco', 'Huawei', 'Intel', 'Nokia', 'ZTE', 'Juniper'];
+  const deviceNames = ['CoreSwitch-01', 'EdgeRouter-02', 'AccessSwitch-03'];
+  const rackNames = ['机架A-01', '机架B-02', '机架C-03'];
+  const roomNames = ['主机房', '备用机房', '边缘机房'];
+  
+  return Array.from({ length: 48 }, (_, i) => {
+    const moduleInserted = Math.random() > 0.2;
+    const status = moduleInserted ? (Math.random() > 0.15 ? 'up' : 'error') : 'down';
+    
+    return {
+      id: `port-${i + 1}`,
+      name: `Port ${i + 1}`,
+      status: status as 'up' | 'error' | 'down',
+      moduleInserted,
+      speed: moduleInserted ? '10G' : 'N/A',
+      mtu: 1500,
+      stats: {
+        rxBytes: moduleInserted ? Math.floor(Math.random() * 10000000000) : 0,
+        txBytes: moduleInserted ? Math.floor(Math.random() * 8000000000) : 0,
+        drops: moduleInserted ? Math.floor(Math.random() * 10) : 0,
+        crcErrors: moduleInserted ? Math.floor(Math.random() * 5) : 0,
+        frameErrors: moduleInserted ? Math.floor(Math.random() * 3) : 0,
+        flopCount: moduleInserted ? Math.floor(Math.random() * 2) : 0
+      },
+      moduleInfo: moduleInserted ? {
+        vendor: vendors[Math.floor(Math.random() * vendors.length)],
+        serialNumber: `SN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+        partNumber: `PN-${Math.floor(Math.random() * 9000 + 1000)}`,
+        temperature: `${(Math.random() * 20 + 40).toFixed(1)}°C`,
+        voltage: `${(3.2 + Math.random() * 0.3).toFixed(2)}V`,
+        current: `${(Math.random() * 50 + 20).toFixed(1)}mA`,
+        rxPower: `${(-Math.random() * 5 - 5).toFixed(2)}dBm`,
+        txPower: `${(-Math.random() * 3 - 3).toFixed(2)}dBm`,
+        location: {
+          device: deviceNames[Math.floor(Math.random() * deviceNames.length)],
+          rack: rackNames[Math.floor(Math.random() * rackNames.length)],
+          room: roomNames[Math.floor(Math.random() * roomNames.length)]
+        }
+      } : undefined
+    };
+  });
 };
 
 export default function Dashboard() {
@@ -536,6 +561,7 @@ export default function Dashboard() {
         <PortDetailsDialog
           port={selectedPort}
           onClose={() => setSelectedPort(null)}
+          selectedDevice={devices.find(d => d.id === selectedDevice)}
         />
       )}
     </div>
