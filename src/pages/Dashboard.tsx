@@ -414,13 +414,107 @@ export default function Dashboard() {
         />
       </div>
 
-      <Tabs defaultValue="overview" className="mb-6" onValueChange={setActiveTab}>
+      <Tabs defaultValue="switch" className="mb-6" onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="overview">系统概览</TabsTrigger>
           <TabsTrigger value="switch">交换机面板</TabsTrigger>
+          <TabsTrigger value="overview">系统概览</TabsTrigger>
           <TabsTrigger value="interfaces">接口详情</TabsTrigger>
           <TabsTrigger value="modules">光模块</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="switch">
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">交换机面板视图</h3>
+                <div className="flex items-center text-sm">
+                  <span className="text-gray-500">设备：</span>
+                  <span className="font-medium ml-1">
+                    {selectedDevice === 'switch1' ? 'Switch A - 核心交换机' : 
+                     selectedDevice === 'switch2' ? 'Switch B - 接入交换机' : 'Switch C - 路由交换机'}
+                  </span>
+                </div>
+              </div>
+              <SwitchPanel
+                ports={ports}
+                onPortClick={(port) => {
+                  setSelectedPort(port);
+                  setIsModalOpen(true);
+                }}
+              />
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">端口状态汇总</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-3xl font-bold text-gray-900">{ports.length}</div>
+                  <div className="text-sm text-gray-500">总端口数</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">
+                    {ports.filter(p => p.moduleInserted && p.status === 'up').length}
+                  </div>
+                  <div className="text-sm text-gray-500">正常端口</div>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <div className="text-3xl font-bold text-red-600">
+                    {ports.filter(p => p.moduleInserted && p.status === 'error').length}
+                  </div>
+                  <div className="text-sm text-gray-500">错误端口</div>
+                </div>
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <div className="text-3xl font-bold text-gray-600">
+                    {ports.filter(p => !p.moduleInserted).length}
+                  </div>
+                  <div className="text-sm text-gray-500">未使用端口</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">端口速率统计</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-700">1G端口</div>
+                    <div className="h-3 w-3 rounded-full bg-blue-400"></div>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold">
+                    {ports.filter(p => p.moduleInserted && p.speed.includes('1G')).length}
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-700">10G端口</div>
+                    <div className="h-3 w-3 rounded-full bg-green-400"></div>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold">
+                    {ports.filter(p => p.moduleInserted && p.speed.includes('10G')).length}
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-700">25G端口</div>
+                    <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold">
+                    {ports.filter(p => p.moduleInserted && p.speed.includes('25G')).length}
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-700">40G/100G端口</div>
+                    <div className="h-3 w-3 rounded-full bg-purple-400"></div>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold">
+                    {ports.filter(p => p.moduleInserted && (p.speed.includes('40G') || p.speed.includes('100G'))).length}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="overview">
           <div>
@@ -516,100 +610,6 @@ export default function Dashboard() {
                   <div className="text-center">
                     <div className="text-2xl font-semibold text-blue-600">2</div>
                     <div className="text-sm text-gray-500">QSFP28</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="switch">
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-6 overflow-hidden">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">交换机面板视图</h3>
-                <div className="flex items-center text-sm">
-                  <span className="text-gray-500">设备：</span>
-                  <span className="font-medium ml-1">
-                    {selectedDevice === 'switch1' ? 'Switch A - 核心交换机' : 
-                     selectedDevice === 'switch2' ? 'Switch B - 接入交换机' : 'Switch C - 路由交换机'}
-                  </span>
-                </div>
-              </div>
-              <SwitchPanel
-                ports={ports}
-                onPortClick={(port) => {
-                  setSelectedPort(port);
-                  setIsModalOpen(true);
-                }}
-              />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">端口状态汇总</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-gray-900">{ports.length}</div>
-                  <div className="text-sm text-gray-500">总端口数</div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-green-600">
-                    {ports.filter(p => p.moduleInserted && p.status === 'up').length}
-                  </div>
-                  <div className="text-sm text-gray-500">正常端口</div>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-red-600">
-                    {ports.filter(p => p.moduleInserted && p.status === 'error').length}
-                  </div>
-                  <div className="text-sm text-gray-500">错误端口</div>
-                </div>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-gray-600">
-                    {ports.filter(p => !p.moduleInserted).length}
-                  </div>
-                  <div className="text-sm text-gray-500">未使用端口</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">端口速率统计</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-700">1G端口</div>
-                    <div className="h-3 w-3 rounded-full bg-blue-400"></div>
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold">
-                    {ports.filter(p => p.moduleInserted && p.speed.includes('1G')).length}
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-700">10G端口</div>
-                    <div className="h-3 w-3 rounded-full bg-green-400"></div>
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold">
-                    {ports.filter(p => p.moduleInserted && p.speed.includes('10G')).length}
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-700">25G端口</div>
-                    <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold">
-                    {ports.filter(p => p.moduleInserted && p.speed.includes('25G')).length}
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-700">40G/100G端口</div>
-                    <div className="h-3 w-3 rounded-full bg-purple-400"></div>
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold">
-                    {ports.filter(p => p.moduleInserted && (p.speed.includes('40G') || p.speed.includes('100G'))).length}
                   </div>
                 </div>
               </div>
