@@ -1,16 +1,17 @@
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Home, Server, BarChart2, MessageSquare, Database } from 'lucide-react';
+import { Home, Server, BarChart2, MessageSquare, Database, LayoutDashboard, Activity, BarChart3, Terminal, Settings } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
   
   const navigation = [
-    { name: '仪表盘', href: '/', icon: Home },
-    { name: '光模块监控', href: '/module-monitor', icon: Server },
-    { name: '预测分析', href: '/predictive', icon: BarChart2 },
+    { name: '仪表盘', href: '/', icon: LayoutDashboard },
+    { name: '光模块监控', href: '/module-monitor', icon: Activity },
+    { name: '预测分析', href: '/module-predictive', icon: BarChart3 },
     { name: '数据统计', href: '/analytics', icon: Database },
-    { name: 'LLM控制台', href: '/llm-console', icon: MessageSquare },
+    { name: '配置管理', href: '/configuration', icon: Settings },
+    { name: 'LLM控制台', href: '/llm-console', icon: Terminal },
   ];
 
   return (
