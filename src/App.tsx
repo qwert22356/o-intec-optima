@@ -7,6 +7,7 @@ import ModulePredictive from './pages/ModulePredictive';
 import Analytics from './pages/Analytics';
 import Configuration from './pages/Configuration';
 import LLMConsole from './pages/LLMConsole';
+import DeviceConnections from './pages/DeviceConnections';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="configuration" element={<Configuration />} />
           <Route path="llm-console" element={<LLMConsole />} />
+          <Route path="device-connections" element={<DeviceConnections />} />
         </Route>
       </Routes>
     </Router>
