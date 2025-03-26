@@ -87,6 +87,7 @@ interface ConnectedDevice {
   lastSeen: string;
   frequency: number;
   responseTime: number;
+  deviceId?: string;
 }
 
 // 组件定义
@@ -463,8 +464,38 @@ export default function Dashboard() {
       const statuses: Array<'connected' | 'disconnected' | 'warning'> = ['connected', 'disconnected', 'warning'];
       const ipBases = ['192.168.1.', '10.0.0.', '172.16.0.', '192.168.10.'];
       
+      // 为了演示，设定一些设备IP对应具体设备ID
+      const deviceMappings: {[key: string]: string} = {
+        '192.168.1.10': 'device1',
+        '10.0.0.20': 'device2',
+        '172.16.0.30': 'device3',
+        '192.168.10.40': 'device4',
+        '192.168.1.50': 'device5',
+        '10.0.0.60': 'device6',
+        '172.16.0.70': 'device7',
+        '192.168.10.80': 'device8'
+      };
+      
       // 增加设备数量到25个，以更好地展示分页功能
       const mockConnectedDevices = Array.from({ length: 25 }).map((_, index) => {
+        // 前8个设备使用预定义的IP和设备ID映射
+        if (index < 8) {
+          const mappedIP = Object.keys(deviceMappings)[index];
+          const deviceId = deviceMappings[mappedIP];
+          
+          return {
+            id: `device-${index + 1}`,
+            ip: mappedIP,
+            protocol: protocols[Math.floor(Math.random() * protocols.length)] as 'snmp' | 'grpc' | 'syslog',
+            status: 'connected' as 'connected', // 确保这些设备都是已连接状态
+            lastSeen: '刚刚',
+            frequency: Math.floor(Math.random() * 30) + 10,
+            responseTime: Math.floor(Math.random() * 100) + 20,
+            deviceId // 添加设备ID字段
+          };
+        }
+        
+        // 其余设备随机生成
         const ipBase = ipBases[Math.floor(Math.random() * ipBases.length)];
         const ipLast = Math.floor(Math.random() * 254) + 1;
         
@@ -511,6 +542,13 @@ export default function Dashboard() {
     
     fetchConnectedDevices();
   }, []);
+
+  // 处理设备连接状态面板中的设备选择
+  const handleDeviceSelect = (device: ConnectedDevice) => {
+    if (device.deviceId) {
+      setSelectedDevice(device.deviceId);
+    }
+  };
 
   // 计算接口统计数据
   const interfaceStats = {
@@ -565,11 +603,16 @@ export default function Dashboard() {
 
       {/* 添加设备连接状态面板 */}
       <div className="bg-white p-4 rounded-lg shadow">
-        <DeviceConnectionStatus devices={connectedDevices} />
+        <DeviceConnectionStatus 
+          devices={connectedDevices} 
+          onDeviceSelect={handleDeviceSelect}
+        />
       </div>
 
+      {/* 设备选择面板 - 添加提示文本，可以保留或者完全隐藏 */}
       <div className="bg-white p-4 rounded-lg shadow">
         <h2 className="text-lg font-semibold mb-4">设备选择</h2>
+        <p className="text-sm text-gray-500 mb-4">您可以点击上方设备连接状态面板中的设备IP快速选择设备，或者从下方列表中手动选择。</p>
         <div className="flex flex-wrap gap-2 mb-4">
           {devices.map((device) => (
             <button
@@ -588,7 +631,14 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-4">交换机面板</h2>
+        <h2 className="text-lg font-semibold mb-4">
+          交换机面板
+          {selectedDevice && (
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              ({devices.find(d => d.id === selectedDevice)?.name || selectedDevice})
+            </span>
+          )}
+        </h2>
         <SwitchPanel
           ports={ports}
           onPortClick={setSelectedPort}

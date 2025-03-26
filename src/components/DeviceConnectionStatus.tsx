@@ -9,18 +9,21 @@ interface ConnectedDevice {
   lastSeen: string;
   frequency: number; // 采集频率，单位秒
   responseTime: number; // 响应时间，单位毫秒
+  deviceId?: string; // 映射到Dashboard设备选择的ID
 }
 
 interface DeviceConnectionStatusProps {
   devices: ConnectedDevice[];
+  onDeviceSelect?: (device: ConnectedDevice) => void;
 }
 
-export function DeviceConnectionStatus({ devices }: DeviceConnectionStatusProps) {
+export function DeviceConnectionStatus({ devices, onDeviceSelect }: DeviceConnectionStatusProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [protocolFilter, setProtocolFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   
   // 重置分页当筛选条件改变时
   useEffect(() => {
@@ -83,6 +86,14 @@ export function DeviceConnectionStatus({ devices }: DeviceConnectionStatusProps)
   const goToPage = (pageNumber: number) => {
     if (pageNumber > 0 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
+    }
+  };
+
+  // 点击设备行的处理函数
+  const handleDeviceClick = (device: ConnectedDevice) => {
+    if (onDeviceSelect && device.status === 'connected') {
+      setSelectedDeviceId(device.id);
+      onDeviceSelect(device);
     }
   };
 
@@ -157,9 +168,18 @@ export function DeviceConnectionStatus({ devices }: DeviceConnectionStatusProps)
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {currentItems.map((device) => (
-              <tr key={device.id} className="hover:bg-gray-50">
+              <tr 
+                key={device.id} 
+                className={`hover:bg-gray-50 ${device.status === 'connected' ? 'cursor-pointer' : ''} ${selectedDeviceId === device.id ? 'bg-blue-50' : ''}`}
+                onClick={() => device.status === 'connected' && handleDeviceClick(device)}
+              >
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{device.ip}</div>
+                  <div className={`text-sm font-medium ${selectedDeviceId === device.id ? 'text-blue-600' : 'text-gray-900'}`}>
+                    {device.ip}
+                    {selectedDeviceId === device.id && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">已选择</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getProtocolBadge(device.protocol)}`}>
