@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, CheckCircle, Server, Network, ArrowUpDown, Arr
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import SwitchPanel from '../components/SwitchPanel';
 import PortDetailsDialog from '../components/PortDetailsDialog';
+import { DeviceConnectionStatus } from '../components/DeviceConnectionStatus';
 import { MOCK_DATA, formatBytes } from '../lib/utils';
 import type { Port } from '../components/SwitchPanel';
 
@@ -75,6 +76,17 @@ interface DeviceStatusCardProps {
   title: string;
   status: DeviceStatusInfo;
   icon: React.ComponentType<any>;
+}
+
+// 设备连接状态类型
+interface ConnectedDevice {
+  id: string;
+  ip: string;
+  protocol: 'snmp' | 'grpc' | 'syslog';
+  status: 'connected' | 'disconnected' | 'warning';
+  lastSeen: string;
+  frequency: number;
+  responseTime: number;
 }
 
 // 组件定义
@@ -312,6 +324,7 @@ export default function Dashboard() {
   const [selectedDevice, setSelectedDevice] = useState("device1");
   const [devices, setDevices] = useState<{id: string, name: string, type: string, interfaces: number}[]>([]);
   const [selectedPort, setSelectedPort] = useState<Port | null>(null);
+  const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([]);
   const ports = generateMockPorts();
 
   // 模拟从gNMI获取设备列表
@@ -439,6 +452,66 @@ export default function Dashboard() {
     }
   }, [selectedDevice, devices]);
 
+  // 模拟获取设备连接数据
+  useEffect(() => {
+    const fetchConnectedDevices = async () => {
+      // 模拟API调用
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // 生成设备连接数据
+      const protocols: Array<'snmp' | 'grpc' | 'syslog'> = ['snmp', 'grpc', 'syslog'];
+      const statuses: Array<'connected' | 'disconnected' | 'warning'> = ['connected', 'disconnected', 'warning'];
+      const ipBases = ['192.168.1.', '10.0.0.', '172.16.0.', '192.168.10.'];
+      
+      // 增加设备数量到25个，以更好地展示分页功能
+      const mockConnectedDevices = Array.from({ length: 25 }).map((_, index) => {
+        const ipBase = ipBases[Math.floor(Math.random() * ipBases.length)];
+        const ipLast = Math.floor(Math.random() * 254) + 1;
+        
+        const protocol = protocols[Math.floor(Math.random() * protocols.length)];
+        const status = Math.random() > 0.8 
+          ? statuses[1] // 10% 断开
+          : Math.random() > 0.9
+            ? statuses[2] // 10% 警告
+            : statuses[0]; // 80% 连接
+            
+        const frequency = protocol === 'snmp' 
+          ? Math.floor(Math.random() * 30) + 30 // 30-60秒
+          : protocol === 'grpc'
+            ? Math.floor(Math.random() * 5) + 1 // 1-5秒
+            : 0; // syslog是事件驱动的
+            
+        const responseTime = protocol === 'snmp'
+          ? Math.floor(Math.random() * 100) + 50 // 50-150ms
+          : protocol === 'grpc'
+            ? Math.floor(Math.random() * 20) + 5 // 5-25ms
+            : 0; // syslog不适用
+            
+        const now = new Date();
+        const lastSeenMinutes = status === 'connected' 
+          ? Math.floor(Math.random() * 5) // 0-5分钟前
+          : Math.floor(Math.random() * 30) + 10; // 10-40分钟前
+        now.setMinutes(now.getMinutes() - lastSeenMinutes);
+        
+        return {
+          id: `device-${index + 1}`,
+          ip: `${ipBase}${ipLast}`,
+          protocol,
+          status,
+          lastSeen: lastSeenMinutes < 1 
+            ? '刚刚' 
+            : `${lastSeenMinutes}分钟前`,
+          frequency,
+          responseTime
+        };
+      });
+      
+      setConnectedDevices(mockConnectedDevices);
+    };
+    
+    fetchConnectedDevices();
+  }, []);
+
   // 计算接口统计数据
   const interfaceStats = {
     total: interfaces.length,
@@ -488,6 +561,11 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* 添加设备连接状态面板 */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <DeviceConnectionStatus devices={connectedDevices} />
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow">
