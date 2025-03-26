@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
-import { Network, Wifi, AlertCircle, Signal, Clock, RefreshCw } from "lucide-react"
+import { Network, AlertCircle, Clock, RefreshCw } from "lucide-react"
 
 // 设备连接状态类型
 type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error'
@@ -131,16 +131,6 @@ export default function DeviceConnections() {
     }
   }
 
-  // 获取协议图标
-  const getProtocolIcon = (protocol: Protocol) => {
-    switch(protocol) {
-      case 'SNMP': return <Wifi className="h-4 w-4 mr-1" />
-      case 'gRPC': return <Network className="h-4 w-4 mr-1" />
-      case 'Syslog': return <Signal className="h-4 w-4 mr-1" />
-      default: return <Wifi className="h-4 w-4 mr-1" />
-    }
-  }
-
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -208,21 +198,18 @@ export default function DeviceConnections() {
             value="snmp" 
             className="bg-white shadow-sm data-[state=active]:bg-blue-50 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-t-lg"
           >
-            <Wifi className="h-4 w-4 mr-2" />
             SNMP设备
           </TabsTrigger>
           <TabsTrigger 
             value="grpc" 
             className="bg-white shadow-sm data-[state=active]:bg-blue-50 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-t-lg"
           >
-            <Network className="h-4 w-4 mr-2" />
             gRPC设备
           </TabsTrigger>
           <TabsTrigger 
             value="syslog" 
             className="bg-white shadow-sm data-[state=active]:bg-blue-50 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-t-lg"
           >
-            <Signal className="h-4 w-4 mr-2" />
             Syslog设备
           </TabsTrigger>
         </TabsList>
@@ -247,10 +234,7 @@ export default function DeviceConnections() {
                     <tr key={device.id} className="hover:bg-gray-50">
                       <td className="p-4 font-medium">{device.ip}</td>
                       <td className="p-4">
-                        <div className="flex items-center">
-                          {getProtocolIcon(device.protocol)}
-                          {device.protocol}
-                        </div>
+                        {device.protocol}
                       </td>
                       <td className="p-4">
                         <Badge 
