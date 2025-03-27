@@ -26,6 +26,40 @@ O-intecOptima 是一个专业的光模块智能运维平台，旨在提供全方
   - 告警规则设置
   - 系统参数配置
 
+## 界面预览
+
+### 设备连接状态面板
+![设备连接状态面板](./screenshots/设备连接状态面板.jpg)
+
+### 设备连接搜索与筛选功能
+![设备连接搜索与筛选功能](./screenshots/设备连接搜索筛选.jpg)
+
+### 数据采集模块
+![数据采集模块](./screenshots/数据采集模块新增.jpg)
+
+### 数据库配置模块
+![数据库配置模块](./screenshots/数据库配置模块新增.jpg)
+
+### 告警策略
+![告警策略](./screenshots/告警策略.jpg)
+
+### 推送模块
+![推送模块](./screenshots/推送模块.jpg)
+
+## 主要功能
+
+### 1. 实时监控
+监控光模块的温度、电压、光功率、误码率等关键参数，提供实时可视化界面。
+
+### 2. 异常检测
+基于机器学习算法，对光模块运行异常进行智能识别和预警。
+
+### 3. 预测分析
+对光模块性能衰退趋势进行预测，提前通知可能的故障风险。
+
+### 4. 配置管理
+集中管理数据采集、存储、告警阈值和通知方式等系统配置。
+
 ## 技术架构
 
 ### 前端技术栈
@@ -114,22 +148,7 @@ o-intec-optima/
 - [ ] 系统测试与优化
 
 ## 贡献指南
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
+欢迎提交问题和改进建议，或直接提交Pull Request。
 
 ## 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 联系方式
-
-- 项目维护者：[qwert22356](https://github.com/qwert22356)
-- 项目仓库：[o-intec-optima](https://github.com/qwert22356/o-intec-optima)
-
-## 致谢
-
-感谢所有为这个项目做出贡献的开发者！
+© 2025 O-Intec Optima. 保留所有权利。 
