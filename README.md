@@ -29,22 +29,22 @@ O-intecOptima 是一个专业的光模块智能运维平台，旨在提供全方
 ## 界面预览
 
 ### 设备连接状态面板
-![设备连接状态面板](./screenshots/设备连接状态面板.jpg)
+![设备连接状态面板](screenshots/设备连接状态面板.jpg)
 
 ### 设备连接搜索与筛选功能
-![设备连接搜索与筛选功能](./screenshots/设备连接搜索筛选.jpg)
+![设备连接搜索与筛选功能](screenshots/设备连接搜索筛选.jpg)
 
 ### 数据采集模块
-![数据采集模块](./screenshots/数据采集模块新增.jpg)
+![数据采集模块](screenshots/数据采集模块新增.jpg)
 
 ### 数据库配置模块
-![数据库配置模块](./screenshots/数据库配置模块新增.jpg)
+![数据库配置模块](screenshots/数据库配置模块新增.jpg)
 
 ### 告警策略
-![告警策略](./screenshots/告警策略.jpg)
+![告警策略](screenshots/告警策略.jpg)
 
 ### 推送模块
-![推送模块](./screenshots/推送模块.jpg)
+![推送模块](screenshots/推送模块.jpg)
 
 ## 主要功能
 
