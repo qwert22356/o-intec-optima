@@ -1,6 +1,6 @@
 # O-intecOptima - 光模块智能运维平台
 
-![系统架构图](screenshots/architecture.png)
+![系统架构图](screenshots/system-architecture.png)
 
 O-intecOptima 是一个专业的光模块智能运维平台，旨在提供全方位的光模块监控、预测性维护和智能分析服务。
 
