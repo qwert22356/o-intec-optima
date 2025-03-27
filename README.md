@@ -201,4 +201,4 @@ npm run dev
 
 ## 许可证
 
-© 2025 O-Intec Optima. 保留所有权利。 
+© 2025 O-Intec LLC. 保留所有权利。 
