@@ -1,6 +1,10 @@
 # O-intecOptima 系统架构
 
-## 整体架构
+## 系统架构图
+
+![系统架构图](../screenshots/系统架构图.png)
+
+## 架构说明
 
 系统采用前后端分离的架构设计，主要分为以下几层：
 
@@ -29,33 +33,3 @@
 - SNMP
 - gRPC
 - syslog
-
-## 架构图
-
-![系统架构图](../screenshots/architecture.png)
-
-## 技术栈说明
-
-1. **前端技术**
-   - React + TypeScript
-   - 现代化UI组件库
-   - 实时数据可视化
-
-2. **后端技术**
-   - FastAPI/Express.js 提供 RESTful API
-   - WebSocket 支持实时数据推送
-   - 模块化的业务逻辑设计
-
-3. **数据存储**
-   - SQLite：结构化数据存储
-   - InfluxDB：时序数据存储
-
-4. **AI/ML 集成**
-   - 预测分析模型
-   - LLM 接口集成
-   - 智能告警系统
-
-5. **监控采集**
-   - 多协议支持
-   - 高性能数据采集
-   - 可扩展的采集框架
