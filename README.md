@@ -99,11 +99,11 @@ O-intecOptima 是一个专业的光模块智能运维平台，旨在提供全方
 ## 模块 ID 命名建议（唯一定位模块）
 统一命名格式：
 ```bash
-<vendor>-<datacenter>-<device_name>-<interface>-<speed>
+<光模块厂商>-<数据中心>-<机房/Pod>-<机柜>-<交换机hostname>-<interface>-<speed>
 ```
 例如：
 ```bash
-CISCO-DC1-SW01-Eth1/1-100G
+CISCO-DC1-Pod01-Rack01-SW01-Eth1/1-100G
 ```
 这样每条指标都能绑定唯一的光模块。
 
