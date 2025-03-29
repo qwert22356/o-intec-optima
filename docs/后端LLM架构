@@ -1,0 +1,41 @@
+## 后端LLM架构 （多表唯一标识-模块ID  <光模块厂商>-<数据中心>-<机房/Pod>-<机柜>-<交换机hostname>-<interface>-<speed> 例如CISCO-DC1-Pod01-Rack01-SW01-Eth1/1-100G）
+
+采集层
+↓
+队列层（Kafka / Redis / MQ）
+   └─ 异步解耦：防止采集层 &处理层耦合卡顿
+↓
+清洗层（Spark / Flink）
+   └─ 标准化格式、模块ID补齐、异常初筛
+↓
+存储层（InfluxDB / TSDB / Parquet / ES）
+   ├─ 实时指标（InfluxDB）
+   ├─ 接口聚合指标（TimescaleDB 等）
+   ├─ 历史归档 + 模型训练（Parquet）
+   └─ 日志检索（Elasticsearch）
+↓
+分析层（预测 + 异常检测 + 健康评分）
+   └─ ARIMA / Prophet / LSTM：预测趋势
+   └─ IsolationForest / 规则引擎：检测异常
+   └─ 健康评分模块：聚合打分
+↓
+缓存层（Redis）
+   ├─ 接口状态缓存（如 Ethernet56）
+   ├─ 健康评分缓存（用于前端秒级展示）
+   ├─ 告警消息发布（Redis Pub/Sub）
+   └─ LLM 对话上下文缓存（用于连续对话）
+↓
+✅ RAG 增强层（核心亮点）
+   ├─ 文档 + 日志 + 指标 + 配置
+   ├─ 检索历史数据（向量召回，向量DB如 FAISS）
+   ├─ 构建 prompt（结合语义上下文 + 配置 + 异常）
+   ├─ 调用 LLM（本地模型或 API，如 ChatGLM / Claude）
+↓
+服务模板层（Service 层逻辑封装）
+└── `llm_service.py`
+    ├─ 调用 RAG 并组合输出
+    ├─ 跨模块数据打通（调用 Timescale / ES / Redis）
+↓
+FastAPI 控制层
+   └─ 统一 RESTful API 网关
+   └─ 负责权限控制 / 日志 / 任务下发
