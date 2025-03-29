@@ -1,0 +1,61 @@
+## 整体架构图： （多表唯一标识-模块ID  <光模块厂商>-<数据中心>-<机房/Pod>-<机柜>-<交换机hostname>-<interface>-<speed> 例如CISCO-DC1-Pod01-Rack01-SW01-Eth1/1-100G）
+
+采集层
+├── SNMP Polling（5分钟）
+├── gRPC 推送（1分钟）
+├── Syslog Collector（如 FluentBit）
+
+↓
+队列层（解耦、缓存、异步）
+├── Kafka（指标 / 日志）
+├── Redis Stream（告警/缓存）
+├── Celery / RabbitMQ（任务队列）
+
+↓
+清洗层（结构化 + 模块 ID）
+├── PySpark 批清洗（大批量）
+├── Spark Streaming / Flink（实时）
+
+↓
+存储层
+├── InfluxDB（gRPC 实时指标）
+├── TimescaleDB（SNMP 接口状态）
+├── Elasticsearch（Syslog 事件）
+├── Parquet（数据湖 / 批量训练）
+
+↓
+分析层（算法模型）
+├── ARIMA / Prophet / LSTM（趋势预测）
+├── IsolationForest / 规则引擎（异常检测）
+├── 健康评分模块（根据指标历史打分）
+
+↓
+Redis 缓存层 ✅
+├── 接口状态缓存（如 Ethernet56）
+├── 健康评分缓存（模块健康度）
+├── 告警消息发布订阅
+├── LLM 对话上下文缓存
+
+↓
+RAG 增强层 ✅
+├─ 文档 + 日志 + 指标 + 配置
+   ├─ 检索历史数据（向量召回，向量DB如 FAISS）
+   ├─ 构建 prompt（结合语义上下文 + 配置 + 异常）
+   ├─ 调用 LLM（本地模型或 API，如 ChatGLM / Claude）
+
+↓
+服务模板层 ✅（封装 API 服务）
+├── module_service.py（查询模块状态）
+├── predict_service.py（调用模型预测）
+├── alert_service.py（告警分析与推送）
+├── config_service.py（配置项管理）
+├── llm_service.py（智能问答）
+
+↓
+FastAPI 控制器层
+├── 对外统一 API（供前端调用）
+├── 接入权限控制、认证、日志追踪
+
+↓
+前端展示层
+├── 自研前端（状态面板 + 健康总览）
