@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MOCK_DATA } from '../lib/utils';
 import { 
   AlertCircle, 
@@ -14,7 +14,19 @@ import {
   CheckCircle2,
   History,
   Plus,
-  RefreshCw
+  RefreshCw,
+  InfoIcon,
+  PieChart,
+  BarChart,
+  Download,
+  FileText,
+  SlidersHorizontal,
+  Calendar,
+  Check,
+  MapPin,
+  Users,
+  AlarmClock,
+  BarChart3
 } from 'lucide-react';
 
 // 定义模块数据接口
@@ -23,6 +35,8 @@ interface ModuleData {
   name: string;
   health: number;
   temperature: string | number;
+  futureTemperature: string | number; // 增加未来温度预测
+  futureTemperatureTime: string; // 增加未来温度预测时间点
   rxPower: string | number;
   txPower: string | number;
   voltage: string | number;
@@ -52,7 +66,7 @@ interface ModuleData {
   failureProbability: number;
   timeToFailure: number; // 小时
   anomalyVector?: string;
-  historicalAnomalies?: number;
+  confidence?: number; // 新增置信度字段
 }
 
 // 定义预测规则接口
@@ -74,6 +88,13 @@ interface PredictionRule {
   createdAt: string;
   updatedAt: string;
   industryRecommendation?: string;
+}
+
+// 定义分页配置接口
+interface PaginationConfig {
+  currentPage: number;
+  pageSize: number;
+  total: number;
 }
 
 // 在参数部分添加行业推荐数据结构
@@ -123,7 +144,7 @@ const industryRecommendations: IndustryRecommendation[] = [
   }
 ];
 
-const ModulePredictive = () => {
+const ModulePredictive: React.FC = () => {
   const [moduleData, setModuleData] = useState<ModuleData[]>([]);
   const [predictionRules, setPredictionRules] = useState<PredictionRule[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -137,7 +158,31 @@ const ModulePredictive = () => {
   const [ruleSearchTerm, setRuleSearchTerm] = useState<string>('');
   const [ruleFilterStatus, setRuleFilterStatus] = useState<string>('all');
   const [showTrendModal, setShowTrendModal] = useState<boolean>(false);
+  const [showModuleTrendModal, setShowModuleTrendModal] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<string | null>(null);
+  const [modulePagination, setModulePagination] = useState<PaginationConfig>({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  });
+  const [rulePagination, setRulePagination] = useState<PaginationConfig>({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  });
+  
+  // 规则统计数据
+  const [ruleStatsVisible, setRuleStatsVisible] = useState<boolean>(true);
+  const [rulesTabStatsVisible, setRulesTabStatsVisible] = useState<boolean>(true);
+  const [ruleTrendsData, setRuleTrendsData] = useState<{
+    dates: string[];
+    predictions: number[];
+    hits: number[];
+  }>({
+    dates: [],
+    predictions: [],
+    hits: []
+  });
   
   // 初始化数据
   useEffect(() => {
@@ -152,6 +197,9 @@ const ModulePredictive = () => {
       const rules = generateMockRules();
       setPredictionRules(rules);
       
+      // 生成规则趋势数据
+      generateRuleTrendsData();
+      
       setIsLoading(false);
     } catch (err) {
       setError('数据加载失败，请稍后重试');
@@ -159,6 +207,44 @@ const ModulePredictive = () => {
       console.error(err);
     }
   }, []);
+  
+  // 生成过去30天的规则趋势数据
+  const generateRuleTrendsData = () => {
+    const dates: string[] = [];
+    const predictions: number[] = [];
+    const hits: number[] = [];
+    
+    // 生成过去30天的日期
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(`${date.getMonth() + 1}/${date.getDate()}`);
+      
+      // 生成随机的预测次数和命中次数
+      const dailyPredictions = Math.floor(Math.random() * 80) + 20; // 20-100之间
+      const dailyHits = Math.floor(dailyPredictions * (Math.random() * 0.4 + 0.5)); // 预测次数的50%-90%
+      
+      predictions.push(dailyPredictions);
+      hits.push(dailyHits);
+    }
+    
+    setRuleTrendsData({ dates, predictions, hits });
+  };
+  
+  // 更新分页总数
+  useEffect(() => {
+    const filteredModules = getFilteredModules();
+    setModulePagination(prev => ({
+      ...prev,
+      total: filteredModules.length
+    }));
+    
+    const filteredRules = getFilteredRules();
+    setRulePagination(prev => ({
+      ...prev,
+      total: filteredRules.length
+    }));
+  }, [moduleData, searchTerm, showFailingOnly, predictionRules, ruleSearchTerm, ruleFilterStatus]);
   
   // 从MOCK_DATA中提取光模块数据并添加预测字段
   const extractModuleData = (): ModuleData[] => {
@@ -179,12 +265,28 @@ const ModulePredictive = () => {
         const timeToFailure = predictedFailure 
           ? Math.floor(Math.random() * 168) + 1 // 1 - 168小时 (1周)
           : 0;
+          
+        // 当前温度
+        const currentTemp = node.temperature || (25 + Math.random() * 15).toFixed(1);
+        
+        // 预测未来温度 (1-7天后) - 根据故障概率决定温度上升幅度
+        const futureHours = Math.floor(Math.random() * 144) + 24; // 24-168小时 (1-7天)
+        const temperatureIncrease = predictedFailure 
+          ? (Math.random() * 12 + 8) // 故障模块温度上升8-20度
+          : (Math.random() * 3); // 正常模块温度上升0-3度
+        const futureTemp = (parseFloat(currentTemp.toString()) + temperatureIncrease).toFixed(1);
+        
+        // 未来时间点
+        const now = new Date();
+        const futureDate = new Date(now.getTime() + futureHours * 60 * 60 * 1000);
         
         modules.push({
           id: node.id,
           name: node.name,
           health: node.health || Math.floor(Math.random() * 100),
-          temperature: node.temperature || (25 + Math.random() * 15).toFixed(1),
+          temperature: currentTemp,
+          futureTemperature: futureTemp,
+          futureTemperatureTime: futureDate.toISOString(),
           rxPower: -(Math.random() * 5 + 3).toFixed(2),
           txPower: -(Math.random() * 3 + 1).toFixed(2),
           voltage: (3.1 + Math.random() * 0.4).toFixed(2),
@@ -212,7 +314,7 @@ const ModulePredictive = () => {
           predictedFailure,
           failureProbability,
           timeToFailure,
-          historicalAnomalies: Math.floor(Math.random() * 10)
+          confidence: Math.floor(Math.random() * 100) + 50 // 50% - 100%
         });
       }
     });
@@ -291,26 +393,69 @@ const ModulePredictive = () => {
       return true;
     });
   };
-  
+
+  // 获取分页后的模块数据
+  const getPaginatedModules = () => {
+    const filteredData = getFilteredModules();
+    const startIndex = (modulePagination.currentPage - 1) * modulePagination.pageSize;
+    const endIndex = startIndex + modulePagination.pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  };
+
   // 获取过滤后的规则
   const getFilteredRules = () => {
     return predictionRules.filter(rule => {
-      if (ruleSearchTerm && 
-          !rule.name.toLowerCase().includes(ruleSearchTerm.toLowerCase()) &&
-          !rule.description.toLowerCase().includes(ruleSearchTerm.toLowerCase())) {
-        return false;
-      }
+      const matchesSearch = rule.name.toLowerCase().includes(ruleSearchTerm.toLowerCase()) ||
+                         rule.description.toLowerCase().includes(ruleSearchTerm.toLowerCase());
       
-      if (ruleFilterStatus === 'active' && !rule.isActive) {
-        return false;
-      }
+      if (ruleFilterStatus === 'all') return matchesSearch;
+      if (ruleFilterStatus === 'active') return matchesSearch && rule.isActive;
+      if (ruleFilterStatus === 'inactive') return matchesSearch && !rule.isActive;
       
-      if (ruleFilterStatus === 'inactive' && rule.isActive) {
-        return false;
-      }
-      
-      return true;
+      return matchesSearch;
     });
+  };
+  
+  // 获取分页后的规则数据
+  const getPaginatedRules = () => {
+    const filteredData = getFilteredRules();
+    const startIndex = (rulePagination.currentPage - 1) * rulePagination.pageSize;
+    const endIndex = startIndex + rulePagination.pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  };
+
+  // 处理模块页码变化
+  const handleModulePageChange = (newPage: number) => {
+    setModulePagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // 处理规则页码变化
+  const handleRulePageChange = (newPage: number) => {
+    setRulePagination(prev => ({
+      ...prev,
+      currentPage: newPage
+    }));
+  };
+
+  // 处理每页显示数量变化
+  const handleModulePageSizeChange = (newSize: number) => {
+    setModulePagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // 切换每页显示数量时重置到第一页
+    }));
+  };
+
+  // 处理规则每页显示数量变化
+  const handleRulePageSizeChange = (newSize: number) => {
+    setRulePagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // 切换每页显示数量时重置到第一页
+    }));
   };
 
   // 添加导出详情函数
@@ -341,7 +486,6 @@ const ModulePredictive = () => {
         发送功率: `${selectedModule.txPower} dBm`,
         电压: `${selectedModule.voltage} V`,
         电流: `${selectedModule.current} mA`,
-        历史异常次数: selectedModule.historicalAnomalies || 0,
       }
     };
     
@@ -386,6 +530,38 @@ const ModulePredictive = () => {
     
     setExportFormat(null); // 重置导出格式选择
   };
+  
+  // 添加导出所有模块数据的函数
+  const exportAllModulesData = () => {
+    const modulesData = getFilteredModules();
+    if (modulesData.length === 0) {
+      alert('没有可导出的数据');
+      return;
+    }
+    
+    // 创建CSV数据
+    let csvContent = '模块名称,位置,状态,故障概率,预计剩余时间,温度,未来温度预测,接收功率,发送功率,电压,电流\n';
+    
+    modulesData.forEach(module => {
+      const location = `${module.dataCenter?.name || '未知'} / ${module.room?.name || '未知'} / ${module.device?.name || '未知'}`;
+      const status = module.predictedFailure ? '预测故障' : '正常';
+      const remainingTime = module.predictedFailure ? `${module.timeToFailure} 小时` : '-';
+      
+      csvContent += `"${module.name}","${location}","${status}",${module.failureProbability}%,"${remainingTime}",${module.temperature}°C,${module.futureTemperature}°C,${module.rxPower} dBm,${module.txPower} dBm,${module.voltage} V,${module.current} mA\n`;
+    });
+    
+    // 导出为CSV文件
+    const filename = `光模块预测分析数据_${new Date().toISOString().split('T')[0]}.csv`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // 添加点击外部关闭导出菜单
   useEffect(() => {
@@ -403,7 +579,60 @@ const ModulePredictive = () => {
       };
     }
   }, [exportFormat]);
-
+  
+  // 过滤规则函数
+  const filteredRules = predictionRules.filter(rule => {
+    const matchesSearch = rule.name.toLowerCase().includes(ruleSearchTerm.toLowerCase()) ||
+                        rule.description.toLowerCase().includes(ruleSearchTerm.toLowerCase());
+    
+    if (ruleFilterStatus === 'all') return matchesSearch;
+    if (ruleFilterStatus === 'active') return matchesSearch && rule.isActive;
+    if (ruleFilterStatus === 'inactive') return matchesSearch && !rule.isActive;
+    
+    return matchesSearch;
+  });
+  
+  // 切换规则激活状态
+  const toggleRuleActiveStatus = (ruleId: string) => {
+    setPredictionRules(prevRules => 
+      prevRules.map(rule => 
+        rule.id === ruleId 
+          ? { ...rule, isActive: !rule.isActive } 
+          : rule
+      )
+    );
+  };
+  
+  // 获取排名前5的规则
+  const getTopRules = () => {
+    return [...predictionRules]
+      .sort((a, b) => b.accuracy - a.accuracy)
+      .slice(0, 5);
+  };
+  
+  // 预测趋势数据
+  const predictionTrends = {
+    labels: Array.from({ length: 30 }, (_, i) => `${30-i}天前`).reverse(),
+    datasets: [
+      {
+        label: '预测次数',
+        data: Array.from({ length: 30 }, () => Math.floor(Math.random() * 50 + 20)),
+        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.4
+      },
+      {
+        label: '命中次数',
+        data: Array.from({ length: 30 }, () => Math.floor(Math.random() * 30 + 10)),
+        borderColor: 'rgba(34, 197, 94, 1)',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        fill: true,
+        tension: 0.4
+      }
+    ]
+  };
+  
   // 渲染主界面
   return (
     <div className="container mx-auto py-6">
@@ -486,6 +715,18 @@ const ModulePredictive = () => {
                         />
                         <Search className="w-5 h-5 text-gray-400 absolute right-3 top-2.5" />
                       </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <div className="flex items-center mr-4">
+                          <div className="w-3 h-3 rounded-full bg-red-500 mr-1"></div>
+                          预测故障: {moduleData.filter(m => m.predictedFailure).length}
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 rounded-full bg-green-500 mr-1"></div>
+                          正常: {moduleData.filter(m => !m.predictedFailure).length}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500">
                       <select 
                         className="px-3 py-2 border border-gray-300 rounded-md"
                         value={showFailingOnly ? 'predicted' : 'all'}
@@ -495,16 +736,13 @@ const ModulePredictive = () => {
                         <option value="predicted">预测故障</option>
                         <option value="normal">正常运行</option>
                       </select>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <div className="flex items-center mr-4">
-                        <div className="w-3 h-3 rounded-full bg-red-500 mr-1"></div>
-                        预测故障: {moduleData.filter(m => m.predictedFailure).length}
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 rounded-full bg-green-500 mr-1"></div>
-                        正常: {moduleData.filter(m => !m.predictedFailure).length}
-                      </div>
+                      <button
+                        className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+                        onClick={() => exportAllModulesData()}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        导出数据
+                      </button>
                     </div>
                   </div>
 
@@ -528,7 +766,7 @@ const ModulePredictive = () => {
                             预计剩余时间
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            温度
+                            未来温度预测
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             操作
@@ -536,7 +774,7 @@ const ModulePredictive = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {getFilteredModules().map((module) => (
+                        {getPaginatedModules().map((module) => (
                           <tr key={module.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 whitespace-nowrap">
                               {module.name}
@@ -574,10 +812,17 @@ const ModulePredictive = () => {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className={`${
-                                parseFloat(String(module.temperature)) > 30 ? 'text-red-600' : 'text-gray-600'
+                                parseFloat(String(module.futureTemperature)) > 45 ? 'text-red-600' : 
+                                parseFloat(String(module.futureTemperature)) > 35 ? 'text-amber-600' : 'text-gray-600'
                               }`}>
-                                {module.temperature}°C
+                                {module.futureTemperature}°C
+                                <span className="text-xs ml-1 text-gray-500">
+                                  (+{(parseFloat(String(module.futureTemperature)) - parseFloat(String(module.temperature))).toFixed(1)})
+                                </span>
                               </span>
+                              <div className="text-xs text-gray-500">
+                                {new Date(module.futureTemperatureTime).toLocaleDateString()}
+                              </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm">
                               <button 
@@ -593,9 +838,67 @@ const ModulePredictive = () => {
                     </table>
                   </div>
                   
-                  {getFilteredModules().length === 0 && (
+                  {getPaginatedModules().length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                       未找到符合条件的光模块
+                    </div>
+                  )}
+                  
+                  {/* 添加模块分页控件 */}
+                  {getFilteredModules().length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between px-4 py-4 border-t border-gray-200 mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        显示 {getFilteredModules().length > 0 ? (modulePagination.currentPage - 1) * modulePagination.pageSize + 1 : 0} - {Math.min(modulePagination.currentPage * modulePagination.pageSize, getFilteredModules().length)} 条，共 {getFilteredModules().length} 条
+                      </div>
+                      
+                      <div className="flex items-center mt-2 sm:mt-0">
+                        <div className="mr-4">
+                          <select 
+                            value={modulePagination.pageSize}
+                            onChange={(e) => handleModulePageSizeChange(Number(e.target.value))}
+                            className="p-1 px-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value={10}>10条/页</option>
+                            <option value={20}>20条/页</option>
+                            <option value={50}>50条/页</option>
+                            <option value={100}>100条/页</option>
+                          </select>
+                        </div>
+                        
+                        <div className="flex">
+                          <button 
+                            onClick={() => handleModulePageChange(1)}
+                            disabled={modulePagination.currentPage === 1}
+                            className="px-3 py-1 rounded-l-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            首页
+                          </button>
+                          <button 
+                            onClick={() => handleModulePageChange(modulePagination.currentPage - 1)}
+                            disabled={modulePagination.currentPage === 1}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            上一页
+                          </button>
+                          <div className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium bg-blue-50">
+                            {modulePagination.currentPage}
+                          </div>
+                          <button 
+                            onClick={() => handleModulePageChange(modulePagination.currentPage + 1)}
+                            disabled={modulePagination.currentPage * modulePagination.pageSize >= getFilteredModules().length}
+                            className="px-3 py-1 border-t border-b border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            下一页
+                          </button>
+                          <button 
+                            onClick={() => handleModulePageChange(Math.ceil(getFilteredModules().length / modulePagination.pageSize))}
+                            disabled={modulePagination.currentPage * modulePagination.pageSize >= getFilteredModules().length}
+                            className="px-3 py-1 rounded-r-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            末页
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -622,70 +925,161 @@ const ModulePredictive = () => {
                         <option value="active">已激活</option>
                         <option value="inactive">未激活</option>
                       </select>
+                      <button
+                        className="ml-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+                        onClick={() => exportAllModulesData()}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        导出数据
+                      </button>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {getFilteredRules().map((rule) => (
-                      <div 
-                        key={rule.id} 
-                        className="border rounded-lg overflow-hidden hover:shadow-md cursor-pointer"
-                        onClick={() => setSelectedRule(rule)}
-                      >
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-medium">{rule.name}</h3>
-                            <div className="flex flex-col items-end">
-                              <span className={`px-2 py-0.5 text-xs rounded-full ${
-                                rule.isActive 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {rule.isActive ? '活跃' : '未激活'}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-500 line-clamp-2 mb-3">
-                            {rule.description}
-                          </p>
-                          <div className="flex justify-between items-center text-xs text-gray-500 mb-2">
-                            <span>模块类型: {rule.moduleType}</span>
-                            <span>算法: {rule.parameters.algorithm}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center">
-                              <div className="w-12 h-2 bg-gray-200 rounded-full mr-2">
-                                <div 
-                                  className={`h-full rounded-full ${
-                                    rule.accuracy >= 80 ? 'bg-green-500' :
-                                    rule.accuracy >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${rule.accuracy}%` }}
-                                ></div>
+                  
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* 左侧规则列表 */}
+                    <div className="w-full lg:w-2/3">
+                      <div className="space-y-4">
+                        {getFilteredRules().map((rule: PredictionRule) => (
+                          <div
+                            key={rule.id}
+                            className={`p-4 border rounded-lg hover:shadow-md cursor-pointer transition-shadow ${
+                              selectedRule?.id === rule.id
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200'
+                            }`}
+                            onClick={() => setSelectedRule(rule)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-medium flex items-center">
+                                <div className={`w-2 h-2 rounded-full mr-2 ${rule.isActive ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                {rule.name}
                               </div>
-                              <span className="text-xs">准确率: {rule.accuracy}%</span>
+                              <div className="flex items-center space-x-2">
+                                <div
+                                  className={`px-2 py-0.5 text-xs rounded-full ${
+                                    rule.accuracy >= 80
+                                      ? 'bg-green-100 text-green-800'
+                                      : rule.accuracy >= 60
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}
+                                >
+                                  {rule.accuracy}% 准确率
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleRuleActiveStatus(rule.id);
+                                  }}
+                                  className={`p-1 rounded-full ${
+                                    rule.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {rule.isActive ? (
+                                    <Check className="w-4 h-4" />
+                                  ) : (
+                                    <X className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
                             </div>
-                            <span className="text-xs">预测次数: {rule.totalPredictions}</span>
+                            <div className="text-sm text-gray-500">{rule.description}</div>
+                            <div className="flex items-center mt-2 text-xs text-gray-500">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              更新于 {new Date(rule.updatedAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {getFilteredRules().length === 0 && (
+                          <div className="text-center py-12 text-gray-500">
+                            {ruleSearchTerm || ruleFilterStatus !== 'all'
+                              ? '没有找到匹配的规则'
+                              : '暂无预测规则，点击下方按钮创建'}
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-center">
+                          <button
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center"
+                            onClick={() => setIsTrainingMode(true)}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            创建新规则
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 右侧规则统计 */}
+                    <div className="w-full lg:w-1/3">
+                      <div className="bg-white rounded-lg shadow p-4 mb-6">
+                        <h3 className="text-lg font-medium mb-4">预测趋势概览</h3>
+                        <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="text-center">
+                            <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-500">过去30天趋势图</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-center space-x-4 mt-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">
+                              {predictionRules.reduce((sum, rule) => sum + rule.totalPredictions, 0)}
+                            </div>
+                            <div className="text-xs text-gray-500">总预测次数</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600">
+                              {predictionRules.reduce((sum, rule) => sum + Math.round(rule.totalPredictions * rule.accuracy / 100), 0)}
+                            </div>
+                            <div className="text-xs text-gray-500">总命中次数</div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  
-                  {getFilteredRules().length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
-                      未找到符合条件的预测规则
+                      
+                      <div className="bg-white rounded-lg shadow p-4">
+                        <h3 className="text-lg font-medium mb-4">规则准确率分析</h3>
+                        <div className="space-y-3">
+                          {getTopRules().map((rule: PredictionRule) => (
+                            <div key={rule.id} className="flex items-center space-x-2">
+                              <div className="w-20 truncate font-medium">{rule.name}</div>
+                              <div className="flex-1">
+                                <div className="w-full h-2 bg-gray-200 rounded-full">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      rule.accuracy >= 80 ? 'bg-green-500' :
+                                      rule.accuracy >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${rule.accuracy}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                              <div className="w-10 text-right font-medium text-sm">
+                                {rule.accuracy}%
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {getTopRules().length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            暂无规则数据
+                          </div>
+                        )}
+                        <button
+                          className="w-full mt-4 px-3 py-2 text-sm text-blue-600 hover:underline flex items-center justify-center"
+                          onClick={() => {
+                            setRuleSearchTerm('');
+                            setRuleFilterStatus('all');
+                            // 确保不弹出任何窗口
+                            setShowTrendModal(false);
+                            setSelectedRule(null);
+                          }}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          刷新所有规则准确率
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  
-                  <div className="text-center mt-8">
-                    <button
-                      onClick={() => setIsTrainingMode(true)}
-                      className="px-4 py-2 border border-dashed border-gray-300 rounded-md text-gray-500 hover:text-gray-700 hover:border-gray-500 inline-flex items-center"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      创建新预测规则
-                    </button>
                   </div>
                 </div>
               )}
@@ -887,33 +1281,17 @@ const ModulePredictive = () => {
                     </div>
                   )}
                   
-                  <div className="mb-4">
-                    <div className="text-sm text-gray-500 mb-1">历史异常次数</div>
-                    <div className="text-lg font-bold">{selectedModule.historicalAnomalies}</div>
-                  </div>
+                  {/* Health status display */}
+                  {selectedModule.predictedFailure && (
+                    <div className="mb-6 p-4 bg-red-50 rounded-lg border-l-4 border-red-400">
+                      <div className="text-red-700 text-sm">
+                        <InfoIcon className="w-5 h-5 inline-block mr-1" />
+                        针对此模块检测到潜在故障风险，预测置信度 <span className="font-bold">{selectedModule.confidence}%</span>
+                      </div>
+                    </div>
+                  )}
                   
-                  <h4 className="text-sm text-gray-500 mb-2 mt-6">预测理由</h4>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm">
-                      {selectedModule.predictedFailure 
-                        ? '根据历史数据分析，该模块存在多项参数异常波动，与历史故障特征模式高度匹配。主要异常特征包括：' 
-                        : '根据历史数据分析，该模块运行正常，未发现明显异常波动模式。监控指标如下：'}
-                    </p>
-                    <ul className="mt-2 text-sm list-disc pl-5 space-y-1">
-                      <li className={`${parseFloat(String(selectedModule.temperature)) > 30 ? 'text-red-600' : 'text-gray-600'}`}>
-                        温度指标 {parseFloat(String(selectedModule.temperature)) > 30 ? '偏高' : '正常'} ({selectedModule.temperature}°C)
-                      </li>
-                      <li className={`${parseFloat(String(selectedModule.rxPower)) < -7 ? 'text-red-600' : 'text-gray-600'}`}>
-                        接收功率指标 {parseFloat(String(selectedModule.rxPower)) < -7 ? '偏低' : '正常'} ({selectedModule.rxPower} dBm)
-                      </li>
-                      <li className="text-gray-600">
-                        发送功率指标 正常 ({selectedModule.txPower} dBm)
-                      </li>
-                      <li className={`${parseFloat(String(selectedModule.voltage)) < 3.2 || parseFloat(String(selectedModule.voltage)) > 3.4 ? 'text-red-600' : 'text-gray-600'}`}>
-                        电压指标 {parseFloat(String(selectedModule.voltage)) < 3.2 || parseFloat(String(selectedModule.voltage)) > 3.4 ? '波动' : '正常'} ({selectedModule.voltage} V)
-                      </li>
-                    </ul>
-                  </div>
+                  
                 </div>
               </div>
               
@@ -952,7 +1330,7 @@ const ModulePredictive = () => {
                 </div>
                 <button 
                   className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                  onClick={() => setShowTrendModal(true)}
+                  onClick={() => setShowModuleTrendModal(true)}
                 >
                   查看历史趋势
                 </button>
@@ -964,36 +1342,44 @@ const ModulePredictive = () => {
 
       {/* 规则详情对话框 */}
       {selectedRule && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">{selectedRule.name}</h3>
-                <button 
-                  onClick={() => setSelectedRule(null)} 
-                  className="text-gray-400 hover:text-gray-600"
+                <h2 className="text-xl font-semibold">{selectedRule.name}</h2>
+                <button
+                  onClick={() => setSelectedRule(null)}
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
               
-              <div className="mb-6">
-                <p className="text-gray-500">{selectedRule.description}</p>
-                <div className="flex mt-2">
-                  {selectedRule.isActive ? (
-                    <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
-                      活跃
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs rounded-full">
-                      未激活
-                    </span>
-                  )}
-                  <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    {selectedRule.moduleType}
+              <div className="flex items-center mb-4">
+                <div className={`px-2 py-1 rounded-full ${
+                  selectedRule.isActive 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {selectedRule.isActive ? '活跃' : '未激活'}
+                </div>
+                <div className="ml-2 text-sm text-gray-500">
+                  准确率: 
+                  <span className={`font-medium ${
+                    selectedRule.accuracy >= 80 ? 'text-green-600' :
+                    selectedRule.accuracy >= 60 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {' '}{selectedRule.accuracy}%
                   </span>
                 </div>
+                <div className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  {selectedRule.moduleType}
+                </div>
               </div>
+              
+              <p className="text-gray-600 mb-6">
+                {selectedRule.description}
+              </p>
               
               {selectedRule.industryRecommendation && (
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
@@ -1114,19 +1500,247 @@ const ModulePredictive = () => {
           </div>
         </div>
       )}
+      
+      {/* 模块历史趋势模态框 */}
+      {showModuleTrendModal && selectedModule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">{selectedModule.name} 历史趋势分析</h2>
+                <button
+                  onClick={() => setShowModuleTrendModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                {/* 温度趋势图 */}
+                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium">温度历史趋势</h3>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full mr-1"></div>
+                      <span>温度 (°C)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="h-64 relative">
+                    <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                      {/* 背景网格 */}
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <line 
+                          key={`grid-y-${i}`}
+                          x1="0" 
+                          y1={50 * i} 
+                          x2="1000" 
+                          y2={50 * i} 
+                          stroke="#E5E7EB" 
+                          strokeWidth="1"
+                          strokeDasharray="5,5"
+                        />
+                      ))}
+                      {Array.from({ length: 7 }).map((_, i) => (
+                        <line 
+                          key={`grid-x-${i}`}
+                          x1={i * (1000 / 6)} 
+                          y1="0" 
+                          x2={i * (1000 / 6)} 
+                          y2="300" 
+                          stroke="#E5E7EB" 
+                          strokeWidth="1"
+                          strokeDasharray="5,5"
+                        />
+                      ))}
+                      
+                      {/* X轴和Y轴 */}
+                      <line x1="0" y1="300" x2="1000" y2="300" stroke="#94A3B8" strokeWidth="2" />
+                      <line x1="0" y1="0" x2="0" y2="300" stroke="#94A3B8" strokeWidth="2" />
+                      
+                      {/* 模拟温度曲线 */}
+                      <path
+                        d="M0,200 C100,180 200,220 300,230 C400,240 500,200 600,150 C700,100 800,120 900,130 L1000,120"
+                        fill="none"
+                        stroke="#F97316"
+                        strokeWidth="3"
+                      />
+                      
+                      {/* 危险阈值线 */}
+                      <line x1="0" y1="80" x2="1000" y2="80" stroke="#EF4444" strokeWidth="1" strokeDasharray="5,5" />
+                      <text x="5" y="75" fontSize="12" fill="#EF4444">危险阈值 (75°C)</text>
+                      
+                      {/* 警告阈值线 */}
+                      <line x1="0" y1="120" x2="1000" y2="120" stroke="#F59E0B" strokeWidth="1" strokeDasharray="5,5" />
+                      <text x="5" y="115" fontSize="12" fill="#F59E0B">警告阈值 (65°C)</text>
+                      
+                      {/* 当前温度指示 */}
+                      <circle cx="1000" cy="120" r="5" fill="#F97316" />
+                      <text x="970" y="105" fontSize="12" fill="#F97316" textAnchor="end">当前: 65°C</text>
+                      
+                      {/* X轴刻度 */}
+                      {['7天前', '6天前', '5天前', '4天前', '3天前', '2天前', '昨天', '今天'].map((label, i) => (
+                        <text 
+                          key={`x-label-${i}`}
+                          x={i * (1000 / 7)} 
+                          y="320" 
+                          textAnchor="middle" 
+                          fontSize="12"
+                          fill="#64748B"
+                        >
+                          {label}
+                        </text>
+                      ))}
+                      
+                      {/* Y轴刻度 */}
+                      {['85°C', '75°C', '65°C', '55°C', '45°C', '35°C', '25°C'].map((label, i) => (
+                        <text 
+                          key={`y-label-${i}`}
+                          x="-5" 
+                          y={i * 50} 
+                          textAnchor="end" 
+                          dominantBaseline="middle"
+                          fontSize="12"
+                          fill="#64748B"
+                        >
+                          {label}
+                        </text>
+                      ))}
+                    </svg>
+                  </div>
+                </div>
+                
+                {/* 功率趋势图 */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium">接收功率历史趋势</h3>
+                    <div className="flex space-x-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+                        <span>接收功率 (dBm)</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                        <span>发送功率 (dBm)</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="h-64 relative">
+                    <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                      {/* 背景网格 */}
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <line 
+                          key={`grid-y-${i}`}
+                          x1="0" 
+                          y1={50 * i} 
+                          x2="1000" 
+                          y2={50 * i} 
+                          stroke="#E5E7EB" 
+                          strokeWidth="1"
+                          strokeDasharray="5,5"
+                        />
+                      ))}
+                      {Array.from({ length: 7 }).map((_, i) => (
+                        <line 
+                          key={`grid-x-${i}`}
+                          x1={i * (1000 / 6)} 
+                          y1="0" 
+                          x2={i * (1000 / 6)} 
+                          y2="300" 
+                          stroke="#E5E7EB" 
+                          strokeWidth="1"
+                          strokeDasharray="5,5"
+                        />
+                      ))}
+                      
+                      {/* X轴和Y轴 */}
+                      <line x1="0" y1="300" x2="1000" y2="300" stroke="#94A3B8" strokeWidth="2" />
+                      <line x1="0" y1="0" x2="0" y2="300" stroke="#94A3B8" strokeWidth="2" />
+                      
+                      {/* 接收功率曲线 */}
+                      <path
+                        d="M0,150 C100,170 200,160 300,180 C400,200 500,190 600,210 C700,230 800,220 900,240 L1000,230"
+                        fill="none"
+                        stroke="#3B82F6"
+                        strokeWidth="3"
+                      />
+                      
+                      {/* 发送功率曲线 */}
+                      <path
+                        d="M0,100 C100,110 200,105 300,115 C400,120 500,115 600,125 C700,130 800,125 900,135 L1000,130"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth="3"
+                      />
+                      
+                      {/* 当前接收功率指示 */}
+                      <circle cx="1000" cy="230" r="5" fill="#3B82F6" />
+                      <text x="970" y="225" fontSize="12" fill="#3B82F6" textAnchor="end">当前: -3.2 dBm</text>
+                      
+                      {/* 当前发送功率指示 */}
+                      <circle cx="1000" cy="130" r="5" fill="#10B981" />
+                      <text x="970" y="125" fontSize="12" fill="#10B981" textAnchor="end">当前: 0.5 dBm</text>
+                      
+                      {/* X轴刻度 */}
+                      {['7天前', '6天前', '5天前', '4天前', '3天前', '2天前', '昨天', '今天'].map((label, i) => (
+                        <text 
+                          key={`x-label-${i}`}
+                          x={i * (1000 / 7)} 
+                          y="320" 
+                          textAnchor="middle" 
+                          fontSize="12"
+                          fill="#64748B"
+                        >
+                          {label}
+                        </text>
+                      ))}
+                      
+                      {/* Y轴刻度 */}
+                      {['5 dBm', '2 dBm', '0 dBm', '-2 dBm', '-5 dBm', '-8 dBm', '-10 dBm'].map((label, i) => (
+                        <text 
+                          key={`y-label-${i}`}
+                          x="-5" 
+                          y={i * 50} 
+                          textAnchor="end" 
+                          dominantBaseline="middle"
+                          fontSize="12"
+                          fill="#64748B"
+                        >
+                          {label}
+                        </text>
+                      ))}
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4 flex justify-end">
+                <button
+                  onClick={() => setShowModuleTrendModal(false)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 创建新规则表单 */}
       {isTrainingMode && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">创建新预测规则</h3>
-                <button 
-                  onClick={() => setIsTrainingMode(false)} 
-                  className="text-gray-400 hover:text-gray-600"
+                <h2 className="text-xl font-semibold">创建新预测规则</h2>
+                <button
+                  onClick={() => setIsTrainingMode(false)}
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
               
@@ -1251,6 +1865,23 @@ const ModulePredictive = () => {
                     <span className="text-sm text-gray-700">规则创建后立即激活</span>
                   </label>
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    行业推荐
+                  </label>
+                  <select className="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="">选择行业推荐（可选）</option>
+                    {industryRecommendations.map(rec => (
+                      <option key={rec.industry} value={rec.industry}>
+                        {rec.industry} ({rec.algorithm})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    选择行业推荐可以应用预设的参数配置，适合您的具体应用场景
+                  </p>
+                </div>
               </div>
               
               <div className="border-t pt-4 flex justify-end space-x-3">
@@ -1262,127 +1893,6 @@ const ModulePredictive = () => {
                 </button>
                 <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
                   创建规则并训练
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 历史趋势弹窗 */}
-      {showTrendModal && selectedModule && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">
-                  {selectedModule.name} 历史趋势分析
-                </h3>
-                <button 
-                  onClick={() => setShowTrendModal(false)} 
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-6 mb-6">
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="p-4 border-b bg-gray-50">
-                    <h4 className="font-medium">温度趋势 (过去30天)</h4>
-                  </div>
-                  <div className="p-4 flex justify-center">
-                    <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center">
-                      <div className="text-center">
-                        <LineChart className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                        <div className="text-gray-500">模拟温度趋势图表</div>
-                        <div className="text-xs text-gray-400 mt-2">显示过去30天的温度波动，标记了3次异常峰值</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="p-4 border-b bg-gray-50">
-                    <h4 className="font-medium">接收功率趋势 (过去30天)</h4>
-                  </div>
-                  <div className="p-4 flex justify-center">
-                    <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center">
-                      <div className="text-center">
-                        <LineChart className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                        <div className="text-gray-500">模拟接收功率趋势图表</div>
-                        <div className="text-xs text-gray-400 mt-2">显示过去30天的接收功率变化，检测到下降趋势</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="p-4 border-b bg-gray-50">
-                    <h4 className="font-medium">异常事件时间线</h4>
-                  </div>
-                  <div className="p-4">
-                    <div className="space-y-4">
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5"></div>
-                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium">温度超出阈值</div>
-                          <div className="text-xs text-gray-500">{new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
-                          <div className="text-sm mt-1">温度达到38.2°C，超出正常工作范围</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <div className="w-3 h-3 rounded-full bg-yellow-500 mt-1.5"></div>
-                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium">接收功率下降</div>
-                          <div className="text-xs text-gray-500">{new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
-                          <div className="text-sm mt-1">接收功率从-5.2dBm下降到-6.8dBm</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5"></div>
-                          <div className="w-0.5 h-full bg-gray-200 mx-auto"></div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium">电压波动</div>
-                          <div className="text-xs text-gray-500">{new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
-                          <div className="text-sm mt-1">电压出现明显波动，从3.3V波动到3.15V</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex">
-                        <div className="flex-shrink-0">
-                          <div className="w-3 h-3 rounded-full bg-green-500 mt-1.5"></div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium">设备重启</div>
-                          <div className="text-xs text-gray-500">{new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toLocaleString()}</div>
-                          <div className="text-sm mt-1">设备计划内重启，模块参数正常恢复</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="border-t pt-4 flex justify-between">
-                <div className="text-sm text-gray-500">
-                  模块运行时间: 187天 | 记录的异常事件: {selectedModule.historicalAnomalies || 4}次
-                </div>
-                <button 
-                  onClick={() => setShowTrendModal(false)}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                >
-                  关闭
                 </button>
               </div>
             </div>
