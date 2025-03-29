@@ -26,7 +26,12 @@ import {
   MapPin,
   Users,
   AlarmClock,
-  BarChart3
+  BarChart3,
+  ArrowUpDown,
+  ArrowDown,
+  ArrowUp,
+  ArrowDownAZ,
+  ArrowUpAZ
 } from 'lucide-react';
 
 // 定义模块数据接口
@@ -182,6 +187,29 @@ const ModulePredictive: React.FC = () => {
     dates: [],
     predictions: [],
     hits: []
+  });
+  
+  // v1.5 版本新增状态
+  const [showHighRiskModuleModal, setShowHighRiskModuleModal] = useState<boolean>(false);
+  const [highRiskModuleSearchTerm, setHighRiskModuleSearchTerm] = useState<string>('');
+  const [highRiskTimeFilter, setHighRiskTimeFilter] = useState<number | null>(null); // 小时
+  const [highRiskModuleSort, setHighRiskModuleSort] = useState<{
+    field: 'timeToFailure' | 'failureProbability',
+    direction: 'asc' | 'desc'
+  }>({
+    field: 'timeToFailure',
+    direction: 'asc'
+  });
+  const [locationFilters, setLocationFilters] = useState<{
+    dataCenter: string | null,
+    room: string | null,
+    rack: string | null,
+    device: string | null
+  }>({
+    dataCenter: null,
+    room: null,
+    rack: null,
+    device: null
   });
   
   // 初始化数据
@@ -631,6 +659,149 @@ const ModulePredictive: React.FC = () => {
         tension: 0.4
       }
     ]
+  };
+  
+  // 获取高风险模块
+  const getHighRiskModules = () => {
+    return moduleData.filter(m => m.predictedFailure && m.timeToFailure <= 24);
+  };
+
+  // 过滤并排序高风险模块
+  const getFilteredAndSortedHighRiskModules = () => {
+    let filtered = getHighRiskModules();
+    
+    // 应用搜索词过滤
+    if (highRiskModuleSearchTerm) {
+      const term = highRiskModuleSearchTerm.toLowerCase();
+      filtered = filtered.filter(m => 
+        (m.name?.toLowerCase().includes(term)) || 
+        (m.device?.name?.toLowerCase().includes(term)) ||
+        (m.dataCenter?.name?.toLowerCase().includes(term)) ||
+        (m.room?.name?.toLowerCase().includes(term)) ||
+        (m.rack?.name?.toLowerCase().includes(term))
+      );
+    }
+    
+    // 应用位置过滤
+    if (locationFilters.dataCenter) {
+      filtered = filtered.filter(m => m.dataCenter?.name === locationFilters.dataCenter);
+    }
+    if (locationFilters.room) {
+      filtered = filtered.filter(m => m.room?.name === locationFilters.room);
+    }
+    if (locationFilters.rack) {
+      filtered = filtered.filter(m => m.rack?.name === locationFilters.rack);
+    }
+    if (locationFilters.device) {
+      filtered = filtered.filter(m => m.device?.name === locationFilters.device);
+    }
+    
+    // 应用预计寿命过滤
+    if (highRiskTimeFilter !== null) {
+      filtered = filtered.filter(m => m.timeToFailure <= highRiskTimeFilter);
+    }
+    
+    // 排序
+    return filtered.sort((a, b) => {
+      if (highRiskModuleSort.field === 'timeToFailure') {
+        return highRiskModuleSort.direction === 'asc' 
+          ? a.timeToFailure - b.timeToFailure 
+          : b.timeToFailure - a.timeToFailure;
+      } else {
+        return highRiskModuleSort.direction === 'asc' 
+          ? a.failureProbability - b.failureProbability 
+          : b.failureProbability - a.failureProbability;
+      }
+    });
+  };
+
+  // 获取唯一位置选项
+  const getUniqueLocationOptions = () => {
+    const highRiskModules = getHighRiskModules();
+    
+    const dataCenters = Array.from(new Set(
+      highRiskModules
+        .filter(m => m.dataCenter?.name)
+        .map(m => m.dataCenter?.name)
+    ));
+    
+    const rooms = Array.from(new Set(
+      highRiskModules
+        .filter(m => m.room?.name)
+        .map(m => m.room?.name)
+    ));
+    
+    const racks = Array.from(new Set(
+      highRiskModules
+        .filter(m => m.rack?.name)
+        .map(m => m.rack?.name)
+    ));
+    
+    const devices = Array.from(new Set(
+      highRiskModules
+        .filter(m => m.device?.name)
+        .map(m => m.device?.name)
+    ));
+    
+    return { dataCenters, rooms, racks, devices };
+  };
+
+  // 导出高风险模块数据
+  const exportHighRiskModules = (format: 'csv' | 'json' | 'pdf') => {
+    const modules = getFilteredAndSortedHighRiskModules();
+    let content: string;
+    let fileName: string;
+    
+    if (format === 'json') {
+      content = JSON.stringify(modules, null, 2);
+      fileName = '高风险模块预警_' + new Date().toISOString().slice(0, 10) + '.json';
+    } else if (format === 'csv') {
+      // 创建CSV表头
+      const headers = [
+        '模块名称', '数据中心', '机房', '机架', '设备', '端口', 
+        '故障概率', '预计剩余时间(小时)', '预测故障时间', '温度', '健康分'
+      ].join(',');
+      
+      // 创建CSV数据行
+      const rows = modules.map(m => [
+        m.name,
+        m.dataCenter?.name || '-',
+        m.room?.name || '-',
+        m.rack?.name || '-',
+        m.device?.name || '-',
+        m.portIndex,
+        m.failureProbability + '%',
+        m.timeToFailure,
+        new Date(Date.now() + m.timeToFailure * 3600 * 1000).toLocaleString(),
+        m.temperature + '°C',
+        m.health
+      ].join(','));
+      
+      content = [headers, ...rows].join('\n');
+      fileName = '高风险模块预警_' + new Date().toISOString().slice(0, 10) + '.csv';
+    } else {
+      // 对于PDF，先生成简单的文本内容，实际应用中应使用PDF生成库
+      content = `高风险模块预警报告\n生成时间: ${new Date().toLocaleString()}\n\n`;
+      modules.forEach((m, i) => {
+        content += `${i+1}. ${m.name}\n`;
+        content += `   位置: ${m.dataCenter?.name || '-'} > ${m.room?.name || '-'} > ${m.rack?.name || '-'} > ${m.device?.name || '-'} > 端口 ${m.portIndex}\n`;
+        content += `   故障概率: ${m.failureProbability}%\n`;
+        content += `   预计剩余时间: ${m.timeToFailure}小时\n`;
+        content += `   预测故障时间: ${new Date(Date.now() + m.timeToFailure * 3600 * 1000).toLocaleString()}\n\n`;
+      });
+      fileName = '高风险模块预警_' + new Date().toISOString().slice(0, 10) + '.txt';
+    }
+    
+    // 创建下载链接
+    const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
   
   // 渲染主界面
@@ -1155,7 +1326,9 @@ const ModulePredictive: React.FC = () => {
                 )}
                 
                 {moduleData.filter(m => m.predictedFailure && m.timeToFailure <= 24).length > 3 && (
-                  <div className="text-center text-sm text-blue-600 cursor-pointer hover:underline">
+                  <div className="text-center text-sm text-blue-600 cursor-pointer hover:underline"
+                    onClick={() => setShowHighRiskModuleModal(true)}
+                  >
                     查看全部 ({moduleData.filter(m => m.predictedFailure && m.timeToFailure <= 24).length})
                   </div>
                 )}
@@ -1899,8 +2072,312 @@ const ModulePredictive: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 高风险模块预测预警表弹窗 */}
+      {showHighRiskModuleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold flex items-center">
+                  <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+                  未来24小时高风险模块预测预警表
+                  <span className="ml-2 text-sm text-gray-500">
+                    (共 {getFilteredAndSortedHighRiskModules().length} 个模块)
+                  </span>
+                </h2>
+                <button 
+                  onClick={() => setShowHighRiskModuleModal(false)} 
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* 搜索和筛选工具栏 */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                {/* 搜索框 */}
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Search className="w-4 h-4 text-gray-400" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="搜索模块名称或位置..."
+                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={highRiskModuleSearchTerm}
+                    onChange={(e) => setHighRiskModuleSearchTerm(e.target.value)}
+                  />
+                </div>
+                
+                {/* 数据中心筛选 */}
+                <div className="relative">
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={locationFilters.dataCenter || ''}
+                    onChange={(e) => setLocationFilters({
+                      ...locationFilters,
+                      dataCenter: e.target.value === '' ? null : e.target.value
+                    })}
+                  >
+                    <option value="">所有数据中心</option>
+                    {getUniqueLocationOptions().dataCenters.map((dc) => (
+                      <option key={dc} value={dc}>{dc}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 机房筛选 */}
+                <div className="relative">
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={locationFilters.room || ''}
+                    onChange={(e) => setLocationFilters({
+                      ...locationFilters,
+                      room: e.target.value === '' ? null : e.target.value
+                    })}
+                  >
+                    <option value="">所有机房</option>
+                    {getUniqueLocationOptions().rooms.map((room) => (
+                      <option key={room} value={room}>{room}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 预计寿命筛选 */}
+                <div className="relative">
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={highRiskTimeFilter?.toString() || ''}
+                    onChange={(e) => setHighRiskTimeFilter(
+                      e.target.value === '' ? null : parseInt(e.target.value)
+                    )}
+                  >
+                    <option value="">所有预计寿命</option>
+                    <option value="1">未来1小时</option>
+                    <option value="2">未来2小时</option>
+                    <option value="4">未来4小时</option>
+                    <option value="6">未来6小时</option>
+                    <option value="12">未来12小时</option>
+                    <option value="24">未来24小时</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* 第二行筛选器 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* 机架筛选 */}
+                <div className="relative">
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={locationFilters.rack || ''}
+                    onChange={(e) => setLocationFilters({
+                      ...locationFilters,
+                      rack: e.target.value === '' ? null : e.target.value
+                    })}
+                  >
+                    <option value="">所有机架</option>
+                    {getUniqueLocationOptions().racks.map((rack) => (
+                      <option key={rack} value={rack}>{rack}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 设备筛选 */}
+                <div className="relative">
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={locationFilters.device || ''}
+                    onChange={(e) => setLocationFilters({
+                      ...locationFilters,
+                      device: e.target.value === '' ? null : e.target.value
+                    })}
+                  >
+                    <option value="">所有设备</option>
+                    {getUniqueLocationOptions().devices.map((device) => (
+                      <option key={device} value={device}>{device}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 排序控制 */}
+                <div className="flex">
+                  <button
+                    className={`flex-1 flex items-center justify-center border ${
+                      highRiskModuleSort.field === 'timeToFailure' 
+                        ? 'bg-blue-50 text-blue-600 border-blue-200' 
+                        : 'border-gray-300 text-gray-600'
+                    } rounded-l-md py-2 px-3`}
+                    onClick={() => setHighRiskModuleSort({
+                      field: 'timeToFailure',
+                      direction: highRiskModuleSort.field === 'timeToFailure' 
+                        ? (highRiskModuleSort.direction === 'asc' ? 'desc' : 'asc') 
+                        : 'asc'
+                    })}
+                  >
+                    剩余时间
+                    {highRiskModuleSort.field === 'timeToFailure' && (
+                      highRiskModuleSort.direction === 'asc' 
+                        ? <ArrowUp className="w-4 h-4 ml-1" /> 
+                        : <ArrowDown className="w-4 h-4 ml-1" />
+                    )}
+                  </button>
+                  <button
+                    className={`flex-1 flex items-center justify-center border ${
+                      highRiskModuleSort.field === 'failureProbability' 
+                        ? 'bg-blue-50 text-blue-600 border-blue-200' 
+                        : 'border-gray-300 text-gray-600'
+                    } rounded-r-md py-2 px-3`}
+                    onClick={() => setHighRiskModuleSort({
+                      field: 'failureProbability',
+                      direction: highRiskModuleSort.field === 'failureProbability' 
+                        ? (highRiskModuleSort.direction === 'asc' ? 'desc' : 'asc') 
+                        : 'desc'
+                    })}
+                  >
+                    风险分数
+                    {highRiskModuleSort.field === 'failureProbability' && (
+                      highRiskModuleSort.direction === 'asc' 
+                        ? <ArrowUp className="w-4 h-4 ml-1" /> 
+                        : <ArrowDown className="w-4 h-4 ml-1" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              {/* 数据表格 */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-200">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        模块名称
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        位置信息
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        故障概率
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        剩余时间
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        预计故障时间
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                        操作
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {getFilteredAndSortedHighRiskModules().map((module) => (
+                      <tr key={module.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className={`w-2 h-2 rounded-full mr-2 ${
+                              module.failureProbability >= 80 ? 'bg-red-500' :
+                              module.failureProbability >= 60 ? 'bg-yellow-500' : 'bg-orange-400'
+                            }`}></div>
+                            <div className="text-sm font-medium text-gray-900">{module.name}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {module.dataCenter?.name || '-'} / {module.room?.name || '-'} / {module.rack?.name || '-'} / {module.device?.name || '-'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-16 h-2 bg-gray-200 rounded-full mr-2">
+                              <div 
+                                className={`h-full rounded-full ${
+                                  module.failureProbability >= 80 ? 'bg-red-500' :
+                                  module.failureProbability >= 60 ? 'bg-yellow-500' : 'bg-orange-400'
+                                }`}
+                                style={{ width: `${module.failureProbability}%` }}
+                              ></div>
+                            </div>
+                            <span 
+                              className={`text-sm font-medium ${
+                                module.failureProbability >= 80 ? 'text-red-600' :
+                                module.failureProbability >= 60 ? 'text-yellow-600' : 'text-orange-600'
+                              }`}
+                            >
+                              {module.failureProbability}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <Clock className={`w-4 h-4 mr-1 ${
+                              module.timeToFailure <= 1 ? 'text-red-500' :
+                              module.timeToFailure <= 6 ? 'text-orange-500' : 'text-yellow-500'
+                            }`} />
+                            <span className="text-sm font-medium">{module.timeToFailure} 小时</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {new Date(Date.now() + module.timeToFailure * 3600 * 1000).toLocaleString()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => setSelectedModule(module)}
+                            className="text-blue-600 hover:text-blue-900 mr-3"
+                          >
+                            详情
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {getFilteredAndSortedHighRiskModules().length === 0 && (
+                  <div className="py-8 text-center text-gray-500">
+                    没有符合条件的高风险模块
+                  </div>
+                )}
+              </div>
+              
+              {/* 导出按钮 */}
+              <div className="mt-6 flex justify-end">
+                <div className="relative mr-4">
+                  <button 
+                    onClick={() => exportHighRiskModules('csv')}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    导出 CSV
+                  </button>
+                </div>
+                <div className="relative mr-4">
+                  <button 
+                    onClick={() => exportHighRiskModules('json')}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    导出 JSON
+                  </button>
+                </div>
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowHighRiskModuleModal(false)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
+// 确保在文件末尾导出时使用正确的类型
 export default ModulePredictive; 
