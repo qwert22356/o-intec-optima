@@ -18,10 +18,13 @@
 
 ↓
 存储层
-├── InfluxDB（gRPC 实时指标）
-├── TimescaleDB（SNMP 接口状态）
-├── Elasticsearch（Syslog 事件）
-├── Parquet（数据湖 / 批量训练）
+存储层
+├── 表名：grpc_interface_metrics（InfluxDB）（用途：采集 gRPC 实时指标数据，1分钟粒度，用于性能监控与趋势预测）
+├── 表名：snmp_interface_status（TimescaleDB）（用途：采集 SNMP 接口状态、广播风暴、链路异常、MAC统计等信息）
+├── 索引名：syslog-events（Elasticsearch）（用途：结构化存储网络设备 syslog 日志，用于协议事件、链路故障、状态变更分析）
+├── 表名：lldp_neighbors（TimescaleDB）（用途：存储 LLDP 邻居发现信息，用于自动拓扑分析）
+├── 表名：module_ddm_metrics（Parquet）（用途：光模块历史 DDM 指标，供模型训练与趋势分析）
+├── 表名：prediction_result（Parquet）（用途：记录 AI 模型对光模块的预测结果和命中规则）
 
 ↓
 分析层（算法模型）
