@@ -18,7 +18,6 @@
 
 ↓
 存储层
-存储层
 ├── 表名：grpc_interface_metrics（InfluxDB）（用途：采集 gRPC 实时指标数据，1分钟粒度，用于性能监控与趋势预测）
 ├── 表名：snmp_interface_status（TimescaleDB）（用途：采集 SNMP 接口状态、广播风暴、链路异常、MAC统计等信息）
 ├── 索引名：syslog-events（Elasticsearch）（用途：结构化存储网络设备 syslog 日志，用于协议事件、链路故障、状态变更分析）
