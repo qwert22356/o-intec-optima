@@ -45,11 +45,17 @@ RAG 增强层 ✅
 
 ↓
 服务模板层 ✅（封装 API 服务）
-├── module_service.py（查询模块状态）
-├── predict_service.py（调用模型预测）
-├── alert_service.py（告警分析与推送）
-├── config_service.py（配置项管理）
-├── llm_service.py（智能问答）
+├── dashboard_service.py（仪表盘统计服务）
+├── device_service.py（设备详情与面板服务）
+├── module_service.py（光模块监控与详情服务）
+├── predict_service.py（模块预测服务）
+├── statistics_service.py（数据统计页面服务）
+├── config_service.py（配置管理服务）
+├── llm_service.py（智能问答服务）
+├── auth_service.py（认证服务）
+├── auth_service.py（认证服务）
+├── settings_service.py（系统设置服务）
+├── alert_service.py（告警管理服务）
 
 ↓
 FastAPI 控制器层
